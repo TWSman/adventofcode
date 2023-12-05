@@ -1,3 +1,16 @@
+use clap::Parser;
+use std::fs;
+use std::collections::HashSet;
+
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Input file
+    #[arg(short, long)]
+    input: String
+}
+
 fn main() {
     println!("Hello, world!");
 }
@@ -6,10 +19,25 @@ fn read_contents(cont: &str) -> (i32, i32) {
 
 }
 
+#[derive(Debug)]
+Struct range {
+    start: usize; 
+    end: usiz;
+}
+
+//#[derive(Debug)]
+//Struct mapping {
+    //ranges
+//}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
+    // First number: destination range start
+    // Second number: Source Range start
+    // Third number: Range length
+    // Unmapped number correspond to 
     fn conts() {
         let a: &str = "seeds: 79 14 55 13
 
