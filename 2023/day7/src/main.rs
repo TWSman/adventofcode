@@ -1,9 +1,7 @@
 use clap::Parser;
 use std::fs;
 use std::collections::BTreeMap;
-use itertools::Itertools;
 use std::cmp::Ordering;
-// use regex::Regex;
 
 
 #[derive(Parser, Debug)]
@@ -46,10 +44,6 @@ struct Hand {
     bid: i64,
 }
 
-enum HandKind {
-    Part1,
-    Part2,
-}
 
 impl Hand {
     fn new1(input: &str) -> Hand {
@@ -75,7 +69,7 @@ impl Hand {
                 None =>{hand_map.insert(*c, 1);}
             }
         }
-        let mut count_b: Vec<&u32> = hand_map.iter().map(|(k,v)| v).collect::<Vec<&u32>>();
+        let mut count_b: Vec<&u32> = hand_map.iter().map(|(_,v)| v).collect::<Vec<&u32>>();
         count_b.sort();
         let hand_type: i32 = match count_b.len() {
             5 => HandType::HIGHCARD, // All must be 1
@@ -96,7 +90,7 @@ impl Hand {
         };
         Hand {hand: cc, hand_type: hand_type, bid}
     }
-    fn new2(input: &str) {
+    fn new2(input: &str) -> Hand {
         let split: Vec<&str> = input.split_whitespace().collect();
         let hand = split[0];
         let bid = split[1].parse::<i64>().expect("Should be a number");
@@ -119,26 +113,38 @@ impl Hand {
                 None =>{hand_map.insert(*c, 1);}
             }
         }
-        let mut count_b: Vec<&u32> = hand_map.iter().map(|(k,v)| v).collect::<Vec<&u32>>();
+        let mut count_b: Vec<&u32> = hand_map.iter().filter(|(k,_)| {**k != 0}).map(|(_k,v)| v).collect::<Vec<&u32>>();
         count_b.sort();
-        let hand_type: i32 = match count_b.len() {
-            5 => HandType::HIGHCARD, // All must be 1
-            4 => HandType::ONEPAIR, // 1 pair, 4 others
+        let joker_count: u32 = *hand_map.get(&0).unwrap_or_else(|| &0);
+        dbg!(&input);
+        dbg!(joker_count);
+        let hand_type: i32 = match (joker_count, count_b.len()) {
+            (5,0) => HandType::FIVEOFAKIND, // 5 Jokers
+            (0,5) => HandType::HIGHCARD, // All must be 1
+            (1,4) => HandType::ONEPAIR, // 1 Joker and 4 others
+            (0,4) => HandType::ONEPAIR, // 1 pair, 3 others (4 uniques)
             // 2 pairs, or 3 of a kind
-            3 => if *count_b[2] == 3 {
+            (2,3) => HandType::THREEOFAKIND, // 2 jokers, 3 uniques 
+            (1,3) => HandType::THREEOFAKIND, // 1 pair, 1 joker
+            (0,3) => if *count_b[2] == 3 {
                 HandType::THREEOFAKIND 
             } else {
                 HandType::TWOPAIRS 
             }
-            2 => if *count_b[1] == 4 {
-                HandType::FOUROFAKIND
+            (3,2) => HandType::FOUROFAKIND, // 3 Jokers, 2 others
+            (2,2) => HandType::FOUROFAKIND, // 2 Jokers, 1 pair, 1 unique
+            (_,2) => if *count_b[0] == 2 { // 1/2 Joker, 2 others uniques
+                // (full_house)
+                HandType::FULLHOUSE // J + 2+2, or JJ + 2 + 1
             } else {
-                HandType::FULLHOUSE
+                HandType::FOUROFAKIND // J + 1 + 4 or JJ + 1 +3
             },
-            1 => HandType::FIVEOFAKIND,
+            (_,1) => HandType::FIVEOFAKIND, // 1 unique kind, all others are jokers
             _ => panic!("Should not happen"),
         };
-        Hand {hand: cc, hand_type: hand_type, bid}
+        Hand {hand: cc,
+            hand_type: hand_type,
+            bid}
     }
 
     // Return true if self outranks the other
@@ -159,32 +165,41 @@ impl Hand {
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let mut hand_list: Vec<Hand> = vec![];
+    let mut hand_list1: Vec<Hand> = vec![];
+    let mut hand_list2: Vec<Hand> = vec![];
     for ln in cont.lines() {
-        let h = Hand::new1(&ln);
-        let n = hand_list.len();
-        hand_list.push(h);
+        let h1 = Hand::new1(&ln);
+        let h2 = Hand::new2(&ln);
+        hand_list1.push(h1);
+        hand_list2.push(h2);
     }
     
-    hand_list.sort_by(|a,b| match a.outranks(b) {
+    hand_list1.sort_by(|a,b| match a.outranks(b) {
         true => Ordering::Greater,
         _ => Ordering::Less,
     });
-    let n = hand_list.len();
-    dbg!(&hand_list);
+
+    hand_list2.sort_by(|a,b| match a.outranks(b) {
+        true => Ordering::Greater,
+        _ => Ordering::Less,
+    });
+
+    let n = hand_list2.len();
+    dbg!(&hand_list2);
     for i in 0..(n-1) {
-        if !hand_list[i+1].outranks(&hand_list[i]) {
+        if !hand_list2[i+1].outranks(&hand_list2[i]) {
             println!();
             println!("i+1 should outrank i");
             dbg!(i);
-            dbg!(&hand_list[i+1]);
-            dbg!(&hand_list[i]);
+            dbg!(&hand_list2[i+1]);
+            dbg!(&hand_list2[i]);
             panic!("LIST NOT IN ORDER");
         }
     }
 
-    let sum = hand_list.iter().enumerate().map(|(i, h)| {(i as i64 +1)*h.bid}).sum();
-    (sum,0)
+    let sum1 = hand_list1.iter().enumerate().map(|(i, h)| {(i as i64 +1)*h.bid}).sum();
+    let sum2 = hand_list2.iter().enumerate().map(|(i, h)| {(i as i64 +1)*h.bid}).sum();
+    (sum1,sum2)
 }
 
 
@@ -224,6 +239,30 @@ QQQJA 483";
         assert!(h2.outranks(&h1));
         assert!(h2.outranks(&h3));
         assert!(h3.outranks(&h4));
+        assert!(h5.outranks(&h2));
+    }
+    #[test]
+    fn hand2() {
+        let h1 = Hand::new2("32T3K 765");
+        let h2 = Hand::new2("T55J5 684");
+        let h3 = Hand::new2("KK677 28");
+        let h4 = Hand::new2("KTJJT 220");
+        let h5 = Hand::new2("QQQJA 483");
+        let h6 = Hand::new2("AAAKK 111");
+        let h7 = Hand::new2("AAAAK 111");
+        let h8 = Hand::new2("AAAAA 111");
+        assert_eq!(h1.hand_type, HandType::ONEPAIR);
+        assert_eq!(h2.hand_type, HandType::FOUROFAKIND);
+        assert_eq!(h3.hand_type, HandType::TWOPAIRS);
+        assert_eq!(h4.hand_type, HandType::FOUROFAKIND);
+        assert_eq!(h5.hand_type, HandType::FOUROFAKIND);
+        assert_eq!(h6.hand_type, HandType::FULLHOUSE);
+        assert_eq!(h7.hand_type, HandType::FOUROFAKIND);
+        assert_eq!(h8.hand_type, HandType::FIVEOFAKIND);
+
+        assert!(h2.outranks(&h1));
+        assert!(h2.outranks(&h3));
+        assert!(h4.outranks(&h3));
         assert!(h5.outranks(&h2));
     }
 }
