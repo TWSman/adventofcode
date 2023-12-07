@@ -1,17 +1,17 @@
 fn main() {
     let input_part1 = "Time:        47     70     75     66
-    Distance:   282   1079   1147   1062";
+Distance:   282   1079   1147   1062";
 
     let input_part2 = "Time:        47707566
-    Distance:   282107911471062";
+Distance:   282107911471062";
 
     println!("Part 1 answer is {}", read_contents(input_part1));
     println!("Part 2 answer is {}", read_contents(input_part2));
 }
 
 const ACC: f64 = 1.0; // Acceleration is 1m/s/s
-// Must have this win margin, end result will always be a whole number. Thus the exact value does
-// not matter
+// Must have this win margin, end result will always be a whole number.
+// Thus the exact value does not matter
 const MARGIN: f64 = 0.5;
 
 #[derive(Debug)]
@@ -22,7 +22,7 @@ struct Race {
 
 
 fn second_degree(a: f64, b: f64, c: f64) -> (f64, f64) {
-    let discriminant: f64 = b *b - 4.0*a*c;
+    let discriminant: f64 = b * b - 4.0 * a * c;
     // We assume that here the polynomials always have two solutions.
     // This means that the discriminant must be positive.
     // In the context of the task, this assumes that there is a way to win every race.
@@ -52,6 +52,7 @@ fn analyze_race(r: &Race) -> i64 {
     let a = -1.0 * ACC;
     let b = ACC * r.time as f64;
     let c = -1.0 * (r.distance as f64 + MARGIN);
+    // Every race should have 2 solutions
     let (sol1, sol2) = second_degree(a, b, c);
     let n1 = sol1.ceil() as i64;
     let n2 = sol2.floor() as i64;
