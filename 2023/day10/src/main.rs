@@ -1,12 +1,3 @@
-// 7: S-W
-// F: S-E
-// J: N-W
-// L: N-E
-// -: E-W
-// |: N-S
-// . nothing
-// S start
-//
 use clap::Parser;
 use std::fs;
 use std::fmt;
