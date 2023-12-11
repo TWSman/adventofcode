@@ -2,7 +2,6 @@ use clap::Parser;
 use std::fs;
 use std::collections::HashSet;
 
-
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -33,13 +32,19 @@ fn main() {
 
     let contents = fs::read_to_string(&args.input)
         .expect("Should have been able to read the file");
-    let res1 = read_contents(&contents, 1);
+    // In part 1 we add 1 one row/column for each empty one.
+    // In other words multiply amount of empty space by 2
+    let res1 = read_contents(&contents, 2);
     println!("Part 1 answer is {}", res1);
-    let res2 = read_contents(&contents, 1000000);
+    // In part 2 we multiply the amount of empty space by 1000000
+    let res2 = read_contents(&contents, 1e6 as i64);
     println!("Part 2 answer is {}", res2);
 }
 
 fn read_contents(cont: &str, expansion: i64) -> i64 {
+    // Expansion gives the multipliciation of empty space
+    // Adding 1 row, means multiplying the amount of empty space by 2
+    // Relatedly when expansion is N, we need to add N -1 rows/columns
     let line_width = cont.lines().next().expect("Should be at least 1 line").len() as i64 + 1;
 
     let mut cols: HashSet<i64> = HashSet::new();
@@ -69,6 +74,7 @@ fn read_contents(cont: &str, expansion: i64) -> i64 {
         if cols.contains(&i_col) {
             col_add.push(*col_add.last().unwrap());
         } else {
+            // We add 'e-1' columns, i.e. multiply amount of columns by 'expansion'
             col_add.push(*col_add.last().unwrap() + expansion - 1);
         }
     }
@@ -77,6 +83,7 @@ fn read_contents(cont: &str, expansion: i64) -> i64 {
         if rows.contains(&i_row) {
             row_add.push(*row_add.last().unwrap());
         } else {
+            // We add 'e - 1' rows, i.e. multiply amount of rows by 'expansion'
             row_add.push(*row_add.last().unwrap() + expansion - 1);
         }
     }
