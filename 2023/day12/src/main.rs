@@ -108,37 +108,53 @@ fn main() {
         .expect("Should have been able to read the file");
     // In part 1 we add 1 one row/column for each empty one.
     // In other words multiply amount of empty space by 2
-    let res = read_contents(&contents);
-    println!("Part 1 answer is {}", res.0);
-    println!("Part 2 answer is {}", res.1);
+    let res1 = read_contents(&contents, 1);
+    println!("Part 1 answer is {}", res1);
+
+    let res2 = read_contents(&contents, 5);
+    println!("Part 2 answer is {}", res2);
 }
 
 
-fn read_line(input: &str) -> i64 {
-    let mut field: Field = Field::new("");
-    let mut counts: Vec<i64> = Vec::new();
-    for (p,v) in input.split_whitespace().with_position() {
+enum RetType {
+    Type1(Field),
+    Type2(Vec<i64>),
+}
+
+fn read_line(input: &str, repeat: usize) -> i64 {
+    dbg!(&input);
+    let (field, mut counts) = match input.split_whitespace().with_position().map(|(p,v)| {
         match p {
             Position::First => {
-                field = Field::new(v);
+                RetType::Type1(Field::new(
+                    &(0..repeat).map(|_| v).join("?")
+                        ))
             },
             Position::Last => {
-                counts = v.split(",").map(|m| {m.parse::<i64>().unwrap()}).collect();
+                RetType::Type2(v.split(",").map(|m| {m.parse::<i64>().unwrap()}).collect())
             }
-            _ => panic!("HEY"),
+            _ => panic!("Unknown position"),
         }
+    }).collect_tuple().unwrap() {
+            (RetType::Type1(x), RetType::Type2(y)) => (x,y),
+            _ => panic!("HEY"),
+        };
+
+    let c = counts.clone();
+    for _ in 0..(repeat-1) {
+        counts.append(&mut c.clone());
     }
     let options = field.get_options();
+
     options.iter().filter(|m| { m == &&counts}).count() as i64
 }
 
-fn read_contents(cont: &str) -> (i64, i64) {
-    
-    (cont.lines().enumerate().map(|(i, l)| {
-        if i % 10 == 0 {
+fn read_contents(cont: &str, repeat: usize) -> i64 {
+    cont.lines().enumerate().map(|(i, l)| {
+        if i % 2 == 0 {
             println!("{}", i);
         }
-        read_line(&l)}).sum(), 0)
+        read_line(&l, repeat)}).sum()
 }
 
 #[cfg(test)]
@@ -153,16 +169,25 @@ mod tests {
 ????.#...#... 4,1,1
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1";
-        assert_eq!(read_contents(&a).0, 21);
+        assert_eq!(read_contents(&a, 1), 21);
+        //assert_eq!(read_contents(&a, 5), 21);
     }
 
     #[test]
     fn line(){
-        assert_eq!(read_line("???.### 1,1,3"            ), 1);
-        assert_eq!(read_line(".??..??...?##. 1,1,3"     ), 4);
-        assert_eq!(read_line("?#?#?#?#?#?#?#? 1,3,1,6"  ), 1);
-        assert_eq!(read_line("????.#...#... 4,1,1 "     ), 1);
-        assert_eq!(read_line("????.######..#####. 1,6,5"), 4);
-        assert_eq!(read_line("?###???????? 3,2,1 "      ),10);
+        assert_eq!(read_line("???.### 1,1,3"            ,1), 1);
+        assert_eq!(read_line(".??..??...?##. 1,1,3"     ,1), 4);
+        assert_eq!(read_line("?#?#?#?#?#?#?#? 1,3,1,6"  ,1), 1);
+        assert_eq!(read_line("????.#...#... 4,1,1 "     ,1), 1);
+        assert_eq!(read_line("????.######..#####. 1,6,5",1), 4);
+        assert_eq!(read_line("?###???????? 3,2,1 "      ,1),10);
+
+        assert_eq!(read_line("???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3", 1), 1);
+        assert_eq!(read_line("???.### 1,1,3"            ,5), 1);
+        //assert_eq!(read_line(".??..??...?##. 1,1,3"     ,5), 16384);
+        //assert_eq!(read_line("?#?#?#?#?#?#?#? 1,3,1,6"  ,5), 1);
+        //assert_eq!(read_line("????.#...#... 4,1,1 "     ,5), 16);
+        //assert_eq!(read_line("????.######..#####. 1,6,5",5), 2500);
+        //assert_eq!(read_line("?###???????? 3,2,1 "      ,5), 506250);
     }
 }
