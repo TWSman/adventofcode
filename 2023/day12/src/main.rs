@@ -46,49 +46,52 @@ struct Field {
     marker_string: String,
 }
 
-fn get_counts(n: i64, counts: &Vec<i64>) -> i64 {
+fn get_counts(n: i64, counts: &Vec<i64>) -> Option<i64> {
     //dbg!(&n);
     //dbg!(&counts);
     let min_len: i64 = counts.iter().sum::<i64>() + counts.iter().count() as i64 - 1;
     let extra_len = n - min_len;
     if min_len == n {
         //println!("Exactly 1");
-        return 1;
+        return Some(1);
     }
     if min_len > n {
         //println!("Not possible");
-        return 0;
+        return Some(0);
     }
     if counts.len() == 1 {
         let tmp = n - counts.last().unwrap() + 1;
         //println!("{} possibilities", tmp);
-        return tmp
+        return Some(tmp);
     }
-    //dbg!(&extra_len);
-    //dbg!(&min_len);
     // Works when extra len is 1
     return match (extra_len, counts.len())  {
-        (1,_) => extra_len * (1 + counts.len() as i64),
-        (n,2) => (n+1) * (n + 2) / 2,
+        (1,_) => Some(extra_len * (1 + counts.len() as i64)),
+        // 2 groups, this is solved
+        (n,2) => Some((n+1) * (n + 2) / 2),
 
-        (2,3) => 10, // Still need a general formula
-        (2,4) => 10, // Not correct!
+        // 3 groups, 
+        (2,3) => Some(12), // Still need a general formula
+        //
+        _ => None,
+        //(n,3) => 12, // 
+        //(2,4) => 10, // Not correct!
         
-        (3,3) => 10, // Not correct!
-        (3,4) => 10, // Not correct!
+        //(3,3) => 10, // Not correct!
+        //(3,4) => 10, // Not correct!
         
-        (4,3) => 10, // Not correct!
-        (4,4) => 10, // Not correct!
-        (4,5) => 10, // Not correct!
+        //(4,3) => 10, // Not correct!
+        //(4,4) => 10, // Not correct!
+        //(4,5) => 10, // Not correct!
         
-        (5,3) => 10, // Not correct!
+        //(5,3) => 10, // Not correct!
         _ => panic!("Unknown combo extra N: {}, count: {}", extra_len, counts.len()), 
     }
 }
 
 impl Field {
     fn new(v: &str, skim: bool) -> Field{
-        let mut vv: &str = &v.clone();
+        let mut vv: &str = &v.clone().replacen("..",".",10).replacen("..",".",10);
         if skim {
             vv = vv.trim_matches('.');
         }
@@ -145,7 +148,7 @@ impl Field {
         get_options(&self.marker_string)
     }
 
-    fn get_len(&self) -> usize {
+    fn len(&self) -> usize {
         self.markers.len()
     }
 
@@ -156,44 +159,42 @@ impl Field {
             //dbg!("No counts left");
             return 1;
         }
-        if self.secs.len() == 1 {
+        if (self.secs.len() == 1) & false {
+            //dbg!("hey");
             let sec = self.secs.last().unwrap();
             if sec.marker == Marker::Unknown {
-                return get_counts(sec.len as i64, &counts);
+                match get_counts(sec.len as i64, &counts) {
+                    Some(v) => return v,
+                    None => (),
+                }
             }
         }
         let min_len: i64 = counts.iter().sum::<i64>() as i64 + counts.len() as i64 - 1;
-        if (self.markers.len() as i64) < min_len {
+        if (self.len() as i64) < min_len {
             //println!("No enough markers left to fill counts");
             return 0;
         }
-        if self.markers.len() as i64 == min_len {
+        //if self.len() as i64 == min_len {
             //dbg!("Only 1 way to fill");
             //dbg!(&counts);
             //dbg!(&self.markers);
-            return 1;
-        }
+            //return 1;
+        //}
         let c1 = *counts.iter().next().unwrap() as usize;
         let c_last = *counts.iter().last().unwrap() as usize;
-        let n = self.markers.len();
+        let n = self.len();
         if self.secs.len() > 1 {
             let last_sec = self.secs.iter().last().unwrap();
             match last_sec.marker {
                 Marker::Broken => {
                     //dbg!("Self ends with a broken marker");
-                    let n = self.markers.len();
+                    let n = self.len();
                     //dbg!(&n);
                     if n < c_last {
-                        //dbg!("HEY");
                         return 0;
                     }
                     if n > c_last {
-                        //dbg!(&self);
-                        //dbg!(&c_last);
-                        //dbg!(&n);
-                        //dbg!(&(n-c_last));
-                        //
-                        //dbg!("Remove last group ({}) and create a subfield", counts[counts.len()-1]);
+                        //dbg!("Remove last group ({}) and create a subfield {}", counts[counts.len()-1]);
                         let sub_field = Field::new(self.marker_string.get(0..n-c_last-1).unwrap(), true);
                         let sub_counts = counts[0..counts.len()-1].to_vec();
                         //dbg!(&sub_counts);
@@ -220,8 +221,11 @@ impl Field {
         match first_sec.marker {
             Marker::Broken => {
                 //println!("Self starts with a broken marker");
-                let n = self.markers.len();
+                let n = self.len();
                 if n < c1 {
+                    return 0;
+                }
+                if c1 > self.possible() {
                     return 0;
                 }
                 if n > c1 {
@@ -321,8 +325,8 @@ fn read_line(input: &str, repeat: usize) -> i64 {
     for _ in 0..(repeat-1) {
         counts.append(&mut c.clone());
     }
-    dbg!(&field.marker_string);
-    dbg!(&counts);
+    ////dbg!(&field.marker_string);
+    //dbg!(&counts);
     // let options = field.get_options();
     // options.iter().filter(|m| { m == &&counts}).count() as i64
     field.get_options_alt(&counts)
@@ -354,86 +358,43 @@ mod tests {
 
     #[test]
     fn counts() {
-        assert_eq!(get_counts(5, &vec![5]), 1);
-        assert_eq!(get_counts(5, &vec![4]), 2);
-        assert_eq!(get_counts(5, &vec![3]), 3);
-        assert_eq!(get_counts(5, &vec![2]), 4);
-        assert_eq!(get_counts(5, &vec![1]), 5);
+        assert_eq!(get_counts(5, &vec![5]).unwrap(), 1);
+        assert_eq!(get_counts(5, &vec![4]).unwrap(), 2);
+        assert_eq!(get_counts(5, &vec![3]).unwrap(), 3);
+        assert_eq!(get_counts(5, &vec![2]).unwrap(), 4);
+        assert_eq!(get_counts(5, &vec![1]).unwrap(), 5);
 
-        assert_eq!(get_counts(5, &vec![2,2]), 1);
-        assert_eq!(get_counts(5, &vec![2,1]), 3);
+        assert_eq!(get_counts(5, &vec![2,2]).unwrap(), 1);
+        assert_eq!(get_counts(5, &vec![2,1]).unwrap(), 3);
 
-        assert_eq!(get_counts(6, &vec![2,1,1]), 1); // No extra
-        assert_eq!(get_counts(7, &vec![2,1,1]), 4); // 1 extra space
-        assert_eq!(get_counts(8, &vec![2,2,1]), 4); // 1 extra space
+        assert_eq!(get_counts(6, &vec![2,1,1]).unwrap(), 1); // No extra
+        assert_eq!(get_counts(7, &vec![2,1,1]).unwrap(), 4); // 1 extra space
+        assert_eq!(get_counts(8, &vec![2,2,1]).unwrap(), 4); // 1 extra space
 
-        assert_eq!(get_counts(5, &vec![1,1]), 6); // 2 extra space
-        // 2 groups, 2 extra space => 6 
-        // First moves: 3 options
-        // Second moves: 1, 2 or 3 options
-        // x.x..
-        // x..x.
-        // .x.x.
-        // x...x
-        // .x..x
-        // ..x.x
-        //
-        assert_eq!(get_counts(6, &vec![1,1]), 10); // 2 extra space
-        // x.x...
-        // x..x..
-        // .x.x..
-        // x...x.
-        // .x..x.
-        // ..x.x.
-        // x....x
-        // .x...x
-        // ..x..x
-        // ...x.x
-        //
-        assert_eq!(get_counts(7, &vec![1,1]), 15); // 2 extra space
-        // x.x.... 1 + 2 +3 +4 +5=
-        // x..x...
-        // .x.x...
-        //
-        // x...x..
-        // .x..x..
-        // ..x.x..
-        //
-        // x....x.
-        // .x...x.
-        // ..x..x.
-        // ...x.x.
-        //
-        // x.....x
-        // .x....x
-        // ..x...x
-        // ...x..x
-        // ....x.x
-
-        assert_eq!(get_counts(8, &vec![2,1,1]), 10); // 2 extra space
-        // 3 groups, 2 extra space => 9
+        assert_eq!(get_counts(5, &vec![1,1]).unwrap(), 6); // 2 extra space
+        assert_eq!(get_counts(6, &vec![1,1]).unwrap(), 10); // 2 extra space
+        assert_eq!(get_counts(7, &vec![1,1]).unwrap(), 15); // 4 extra space
+        // 1 for lefternmost, 2+1 for second, 1+2+3 for third position
+        assert_eq!(get_counts(7, &vec![1,1,1]).unwrap(), 12); // 2 extra space
+        //assert_eq!(get_counts(8, &vec![1,1,1]).unwrap(), 12); // 2 extra space
+        // 3 groups, 3 extra space => 9
         // First moves: 3 options
         // Second moves: 1, 2 or 3 options
         // Third moves: 1, 2 or 3 options
         //
-        // 1 + (1+2) + (1+2+3)
-        // xx.x.x.. 1
+        // 1 + (1+2) + (1+2+3) = 12
+        //  xx.x.x... no moves -> 1 option
         //
-        //  xx.x..x.
-        //  xx..x.x. 2
+        //  xx.x..x.. 1 move -> Ng options (Ng = 3)
+        //  xx..x.x.. 
+        //  .xx.x.x.. 
         //
-        //  .xx.x.x. 1
-        //          =3
-        //
-        //  xx.x...x 1
-        //
-        //  xx..x..x 2
-        //  .xx.x..x
-        //
-        //  xx...x.x 3
-        //  .xx..x.x
-        //  ..xx.x.x
-        //          = 6
+        //  xx.x...x. 2 move -> 
+        //  xx..x..x. 
+        //  .xx.x..x. 
+        //  xx...x.x. 
+        //  .xx..x.x. 
+        //  ..xx.x.x. 
     }
 
     #[test]
@@ -508,7 +469,55 @@ mod tests {
 
         //assert_eq!(read_line("???.###????.###????.###????.###????.### 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3", 1), 1);
         assert_eq!(read_line("???.### 1,1,3"            ,5), 1);
-        assert_eq!(read_line(".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3", 1), 16384);
+        //assert_eq!(read_line(".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??... 1,1,3,1,1,3,1,1,3,1,1,3,1,1", 1), 16384);
+
+        assert_eq!(read_line(".##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??. 3,1,1,3,1,1,3,1,1,3,1,1", 1), 0);
+
+        //"..#..#."
+        //"..#...#"
+        //"...#.#."
+        //"...#..#"
+        //"#.#...."
+        //"#..#..."
+        //"#....#."
+        //"#.....l#"
+        assert_eq!(read_line("?.??.?? 1,1", 1), 8);
+        assert_eq!(read_line("?##.?.??.?? 3,1,1", 1), 8);
+        assert_eq!(read_line("??.?##.?.??.??. 1,3,1,1", 1), 16);
+
+        assert_eq!(read_line(".#.??.?##.?.??.??. 1,1,3,1,1", 1), 16);
+
+        assert_eq!(read_line("...#?.?##.?.??.??. 1,1,3,1,1", 1), 0);
+
+        assert_eq!(read_line(".......##.?.??.??. 1,1,3,1,1", 1), 0);
+
+        assert_eq!(read_line("###.?.??.??. 1,1,3,1,1", 1), 0);
+        // Min len would be 1 + 1 + 3 + 1 + 1 +4 = 11
+
+        assert_eq!(read_line("......?##.?.??.??. 1,1,3,1,1", 1), 0);
+        assert_eq!(read_line("....#.?##.?.??.??. 1,1,3,1,1", 1), 0);
+
+        assert_eq!(read_line("....?.?##.?.??.??. 1,1,3,1,1", 1), 0);
+        assert_eq!(read_line("...??.?##.?.??.??. 1,1,3,1,1", 1), 0);
+
+        assert_eq!(read_line("#?.??.?##.?.??.??. 1,1,3,1,1", 1), 16);
+        assert_eq!(read_line(".?.??.?##.?.??.??. 1,1,3,1,1", 1), 16);
+
+        assert_eq!(read_line("??.??.?##.?.??.??. 1,1,3,1,1", 1), 32);
+        assert_eq!(read_line("..??.??.?##.?.??.??. 1,1,3,1,1", 1), 32);
+        assert_eq!(read_line("#.??.??.?##.?.??.??. 1,1,3,1,1", 1), 32);
+        assert_eq!(read_line("..??.??.?##.?.??.??. 1,1,3,1,1", 1) +
+                   read_line("#.??.??.?##.?.??.??. 1,1,3,1,1", 1),
+            64);
+
+        //assert_eq!(read_line(".##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??. 3,1,1,3,1,1,3,1,1,3,1,1", 1), 0);
+        //assert_eq!(read_line(".##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??. 3,1,1,3,1,1,3,1,1,3,1,1", 1), 0);
+        //assert_eq!(read_line(".##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??. 3,1,1,3,1,1,3,1,1,3,1,1", 1), 0);
+
+        assert_eq!(read_line("?##.?.??.??.?##.?.??.??.?##.?.??.??.?##.?.??.??. 3,1,1,3,1,1,3,1,1,3,1,1", 1), 16384 / 4);
+
+        assert_eq!(read_line(".??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##.?.??..??...?##. 1,1,3,1,1,3,1,1,3,1,1,3,1,1,3", 1), 16384); // should be 16384
+
         assert_eq!(read_line(".??..??...?##. 1,1,3"     ,5), 16384);
         assert_eq!(read_line("?#?#?#?#?#?#?#? 1,3,1,6"  ,5), 1);
         assert_eq!(read_line("????.#...#... 4,1,1 "     ,5), 16);
