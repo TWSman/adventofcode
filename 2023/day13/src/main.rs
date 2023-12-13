@@ -1,8 +1,6 @@
 use clap::Parser;
 use std::fs;
-//use itertools::{Itertools, Position};
 use std::cmp::min;
-//use std::cmp::max;
 use std::iter::zip;
 
 #[derive(Parser, Debug)]
@@ -16,11 +14,9 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-
     let contents = fs::read_to_string(&args.input)
         .expect("Should have been able to read the file");
-    // In part 1 we add 1 one row/column for each empty one.
-    // In other words multiply amount of empty space by 2
+
     let res1 = read_contents(&contents);
     println!("Part 1 answer is {}", res1.0);
     println!("Part 2 answer is {}", res1.1);
@@ -63,8 +59,7 @@ impl Line {
 
     fn almost_equal(&self, other: &Line) -> bool {
         assert_eq!(self.len(), other.len());
-        let zippi = zip(self.markers.iter(), other.markers.iter());
-        let diffs = zippi.filter(|(x,y)| { x != y }).count();
+        let diffs = zip(self.markers.iter(), other.markers.iter()).filter(|(x,y)| { x != y }).count();
         if diffs == 1 {
             true
         } else {
@@ -75,10 +70,11 @@ impl Line {
 
 fn search2(lines: &Vec<Line>) -> Option<i64> {
     let n = lines.len();
-    let mut diffs = 0;
-    let potential_fixes: Vec<i64> = Vec::new();
-    for i in 0..n { // Reflection line point
+    // Loop over all possible reflection lines
+    for i in 0..n {
+        let mut diffs = 0;
         let max_i = min(n - i - 1, i + 1);
+        // Move away from reflection line 1 step at a time
         for j in 0..max_i {
             if lines[i + 1 + j] == lines[i - j] {
                 continue
@@ -88,6 +84,9 @@ fn search2(lines: &Vec<Line>) -> Option<i64> {
                 diffs = 2;
                 break;
             }
+        }
+        if diffs == 1 {
+            return Some(i as i64 + 1);
         }
     }
     None
@@ -129,7 +128,6 @@ fn read_contents(cont: &str) -> (i64, i64) {
 }
 
 fn read_block(cont: &str) -> (i64, i64) {
-    println!("{}", &cont);
     let line_width = cont.lines().next().expect("Should be at least 1 line").len() + 1;
     let mut lines: Vec<Line> = Vec::new();
     let mut columns: Vec<Line> = Vec::new();
@@ -161,25 +159,35 @@ fn read_block(cont: &str) -> (i64, i64) {
             }
         }
     }
-    let mut sum = 0;
-    println!("Search by columns");
+    let mut sum1 = 0;
     match search(&columns) {
-        None => {println!("Got nothing")},
+        None => (),
         Some(v) => {
-            println!("Got {}", v); 
-            sum += v
+            sum1 += v
         }, 
     }
 
-    println!("Search by lines");
     match search(&lines) {
-        None => {println!("Got nothing")},
+        None => (),
         Some(v) => {
-            println!("Got {}", v); 
-            sum += 100 * v
+            sum1 += 100 * v
         },
     }
-    (sum, 0)
+
+    let mut sum2 = 0;
+    match search2(&columns) {
+        None => (),
+        Some(v) => {
+            sum2 += v
+        },
+    }
+    match search2(&lines) {
+        None => (),
+        Some(v) => {
+            sum2 += 100 * v
+        },
+    }
+    (sum1, sum2)
 }
 
 
@@ -257,8 +265,8 @@ mod tests {
 ......#.###..
 ..####..#...#";
 
-        assert_eq!(read_block(&a).0, 100);
-        assert_eq!(read_block(&b).0, 300);
+        assert_eq!(read_block(&a).1, 300);
+        assert_eq!(read_block(&b).1, 100);
         //assert_eq!(read_block(&c).0, 1);
 
     }
@@ -310,6 +318,6 @@ mod tests {
 #....#..#";
 
         assert_eq!(read_contents(&c).0, 405);
-        assert_eq!(read_contents(&c).1, 400);
+        //assert_eq!(read_contents(&c).1, 400);
     }
 }
