@@ -58,7 +58,7 @@ fn main() {
     //println!("Part 2 answer is {}", res2);
 }
 
-fn read_contents(cont: &str) -> i64 {
+fn read_contents(cont: &str, cycles: i64) -> i64 {
     // Expansion gives the multipliciation of empty space
     // Adding 1 row, means multiplying the amount of empty space by 2
     // Relatedly when expansion is N, we need to add N -1 rows/columns
@@ -135,6 +135,20 @@ O.#..O.#.#
 .......O..
 #....###..
 #OO..#....";
-        assert_eq!(read_contents(&a), 136);
+        assert_eq!(read_contents(&a, 0), 136);
+    }
+
+    fn part2() {
+        let a = "O....#....
+O.OO#....#
+.....##...
+OO.#O....O
+.O.....O#.
+O.#..O.#.#
+..O..#O..O
+.......O..
+#....###..
+#OO..#....";
+        assert_eq!(read_contents(&a, 1_000_000_000), 64);
     }
 }
