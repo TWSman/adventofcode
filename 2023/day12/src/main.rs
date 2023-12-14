@@ -2,6 +2,10 @@ use clap::Parser;
 use std::fs;
 use itertools::{Itertools, Position};
 
+extern crate rayon;
+
+use rayon::prelude::*;
+
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -255,16 +259,19 @@ fn get_options(markers: &String) -> Vec<Vec<i64>> {
 }
 
 fn main() {
+    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+
     let args = Args::parse();
 
     let contents = fs::read_to_string(&args.input)
         .expect("Should have been able to read the file");
     // In part 1 we add 1 one row/column for each empty one.
     // In other words multiply amount of empty space by 2
-    let res1 = read_contents(&contents, 1);
+    //let res1 = read_contents(&contents, 1);
+    let res1 = read_contents_conc(&contents, 1);
     println!("Part 1 answer is {}", res1);
 
-    let res2 = read_contents(&contents, 5);
+    let res2 = read_contents_conc(&contents, 5);
     println!("Part 2 answer is {}", res2);
 }
 
@@ -300,12 +307,23 @@ fn read_line(input: &str, repeat: usize) -> i64 {
     field.get_options_alt(&counts)
 }
 
+fn read_contents_conc(cont: &str, repeat: usize) -> i64 {
+    cont.lines().enumerate().collect::<Vec<_>>().par_iter().map(|(i, l)| {
+        println!("{}", i);
+        println!("{}", &l);
+        let tmp = read_line(&l, repeat);
+        println!("{} got {}", &l, tmp);
+        tmp
+    }).sum()
+}
+
 fn read_contents(cont: &str, repeat: usize) -> i64 {
     cont.lines().enumerate().map(|(i, l)| {
-        if i % 10 == 0 {
-            println!("{}", i);
-        }
-        read_line(&l, repeat)}).sum()
+        //if i % 10 == 0 {
+            //println!("{}", i);
+        //}
+        read_line(&l, repeat)}
+    ).sum()
 }
 
 #[cfg(test)]
@@ -321,6 +339,7 @@ mod tests {
 ????.######..#####. 1,6,5
 ?###???????? 3,2,1";
         assert_eq!(read_contents(&a, 1), 21);
+        assert_eq!(read_contents_conc(&a, 1), 21);
         assert_eq!(read_contents(&a, 5), 525152);
     }
 
