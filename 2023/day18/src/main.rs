@@ -4,7 +4,6 @@ use clap::Parser;
 use std::fs;
 use std::fmt;
 use std::collections::BTreeMap;
-use std::cmp::{max,min};
 use indexmap::IndexMap;
 use nom::{
     IResult,
@@ -12,7 +11,6 @@ use nom::{
     combinator::map_res,
     sequence::tuple};
 use regex::Regex;
-use num_traits::FromPrimitive;
 
 
 #[derive(Parser, Debug)]
@@ -63,18 +61,6 @@ impl Direction {
         }
     }
 
-    fn opposite(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 2) % 4).unwrap()
-    }
-
-    fn cw(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 1) % 4).unwrap()
-    }
-
-    fn ccw(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 3) % 4).unwrap()
-    }
-
     fn get_d(self) -> (i64, i64) {
         match self {
             Direction::North => (0,1),
@@ -97,14 +83,7 @@ impl fmt::Display for Direction {
 }
 
 
-#[derive(Debug,PartialEq)]
-pub struct Color {
-  pub red:     u8,
-  pub green:   u8,
-  pub blue:    u8,
-}
-
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Dig {
     direction: Direction,
     length: i64,
@@ -112,10 +91,56 @@ struct Dig {
 
 
 impl Dig {
-    //L 5 (#8ceee2)
     fn new(direction: Direction, length: i64) -> Dig {
         Dig {direction: direction, length: length}
     }
+}
+
+#[derive(Debug, Clone)]
+struct DigLineVertical {
+    direction: Direction,
+    max_y: i64,
+    min_y: i64,
+    x: i64,
+}
+
+#[derive(Debug, Clone)]
+struct DigLineHorizontal {
+    max_x: i64,
+    min_x: i64,
+    y: i64,
+}
+
+
+impl DigLineVertical {
+    fn intersects(&self, y: i64) -> bool {
+        (y <= self.max_y) & (y >= self.min_y)
+    }
+
+    fn new(dig: &Dig, start_x: i64, start_y: i64) -> DigLineVertical {
+        let (min_y, max_y) = match dig.direction {
+            Direction::North => (start_y, start_y + dig.length),
+            Direction::South => (start_y - dig.length, start_y),
+            _ => panic!("Should not happen"),
+        };
+        DigLineVertical{ direction: dig.direction, max_y: max_y, min_y: min_y, x: start_x}
+    }
+}
+
+impl DigLineHorizontal {
+    fn new(dig: &Dig, start_x: i64, start_y: i64) -> DigLineHorizontal {
+        let (min_x, max_x) = match dig.direction {
+            Direction::East => (start_x, start_x + dig.length),
+            Direction::West => (start_x - dig.length, start_x),
+            _ => panic!("Should not happen"),
+        };
+        DigLineHorizontal{ max_x: max_x, min_x: min_x, y: start_y}
+    }
+
+    fn area(&self) -> i64 {
+        self.max_x - self.min_x +1
+    }
+    
 }
 
 fn parse_line(input: &str) -> Option<(Dig, Dig)> {
@@ -160,68 +185,121 @@ fn read_contents(cont: &str) -> (i64, i64) {
 
     let digs: Vec<&Dig> = dig_pairs.iter().map(|(a,_)| {a}).collect();
     let digs_alt: Vec<&Dig> = dig_pairs.iter().map(|(_,b)| {b}).collect();
-    let part1 = analyze_digs(digs, false);
+    let part1 = analyze_digs(digs);
     println!("Part 1 answer is {}", part1);
-    let part2 = analyze_digs(digs_alt, false);
+    let part2 = analyze_digs(digs_alt);
+    //let part2 = 0;
     (part1, part2)
 }
 
-fn analyze_digs(digs: Vec<&Dig>, test: bool) -> i64 {
+fn analyze_digs(digs: Vec<&Dig>) -> i64 {
     let start_x: i64 = 0;
     let start_y: i64 = 0;
-
-    let (mut max_x, mut max_y) = (0,0);
-    let (mut min_x, mut min_y) = (0,0);
 
     let (mut x, mut y) = (start_x, start_y);
     let mut prev_direction: Direction = digs.last().unwrap().direction;
 
     let mut turn_count = 0; // CCW increases, CW decreases
-    let mut coords_with_direction: IndexMap<(i64, i64), Direction> = IndexMap::new();
-    let mut rows: BTreeMap<i64, Vec<(i64, Direction)>> = BTreeMap::new();
-    for (i,d) in digs.iter().enumerate() {
-        println!("{} / {}", i+1, digs.len());
+    let mut diglines: Vec<DigLineVertical> = Vec::new();
+    let mut diglines_horizontal: Vec<DigLineHorizontal> = Vec::new();
+    dbg!(&digs);
+    for (_i,d) in digs.iter().enumerate() {
         let dir = d.direction;
         let (dx, dy) = dir.get_d();
         turn_count += prev_direction.get_turn(dir);
-        for i in 1..=d.length {
-            let dir2 = match (i, prev_direction) {
-                (1, Direction::North | Direction::South) => prev_direction,
-                (_,_) => dir,
-            };
-            coords_with_direction.insert((x,y), dir2);
-            match rows.get_mut(&y) {
-                None => {
-                    rows.insert(y, vec![(x, dir2)]);
-                }
-                Some(v) => {
-                    v.push((x, dir2))
-                },
-            }
-            x += dx;
-            y += dy;
+        if (d.direction == Direction::North) | (d.direction == Direction::South) {
+            diglines.push(DigLineVertical::new(d,x,y) );
+        } else {
+            diglines_horizontal.push(DigLineHorizontal::new(d,x,y) );
         }
+        x += d.length * dx;
+        y += d.length * dy;
         prev_direction = dir.clone();
 
-        max_x = max(x, max_x);
-        min_x = min(x, min_x);
+    }
 
-        max_y = max(y, max_y);
-        min_y = min(y, min_y);
+    let max_y = diglines.iter().map(|d| {d.max_y}).max().unwrap();
+    let min_y = diglines.iter().map(|d| {d.min_y}).min().unwrap();
+
+    for d in &diglines {
+        match d.direction {
+            Direction::North | Direction::South => {
+                println!("x: {}, y: {} - {}", d.x, d.min_y, d.max_y);
+            },
+            _ => (),
+        }
     }
 
 
     assert_eq!(x, start_x);
     assert_eq!(y, start_y);
 
-    if test {
-        return coords_with_direction.len() as i64;
-    }
-    println!("We have {} coordinates", coords_with_direction.len());
-    //area(coords_with_direction, turn_count)
-    area2(rows, turn_count, max_y, min_y) + coords_with_direction.len() as i64
+    diglines.sort_by_key(|k| k.x);
+    area3(diglines, diglines_horizontal, turn_count, min_y, max_y) as i64
 }
 
+
+fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizontal>, turn_count: i64, min_y: i64, max_y: i64) -> i64 {
+    let multi = if turn_count < 0 { 1 } else { -1 };
+    dbg!(&diglines_horizontal);
+    let count = max_y - min_y;
+    (min_y..=max_y).map(|row_id| {
+        let i = row_id - min_y;
+        if i % 100000 == 0{
+            println!("i: {} / {}", i, count);
+        }
+        let intersects: Vec<(i64, Direction)> = diglines.iter().filter_map(|d| {
+            if d.intersects(row_id) {
+                Some((d.x, d.direction))
+            } else {
+                None
+            }
+        }).collect();
+        let horizontals: Vec<&DigLineHorizontal> = diglines_horizontal.iter().filter_map(|d| {
+            if d.y == row_id {
+                Some(d)
+            } else {
+                None
+            }
+        }).collect();
+        if intersects.len() == 0 {
+            return 0;
+        }
+        let mut prev_x = intersects[0].0 - 1;
+        let mut inside = -1;
+        let mut a: i64 = 0;
+        for (x, dir) in intersects {
+            a += 1;
+            //dbg!(&dir);
+            if inside > 0 {
+                a += x - prev_x - 1;
+            } else {
+                let tmp = horizontals.iter().filter_map(|h| {
+                    if (h.max_x == x) & (h.min_x == prev_x) {
+                        //dbg!(&h);
+                        Some(h.area() - 2)
+                    } else {
+                        None
+                    }
+                }).sum::<i64>();
+                //println!("{} area from horizontal", tmp);
+                a += tmp;
+            }
+            //println!("Intersect at {} ({}), area: {}", x, dir, a);
+            match dir {
+                Direction::North => {
+                    inside = 1 * multi;
+                }
+                Direction::South => {
+                    inside = -1 * multi;
+                }
+                _ => (),
+            }
+            prev_x = x;
+        }
+        a
+    }).sum()
+}
 
 fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
     turn_count: i64,
@@ -231,7 +309,7 @@ fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
     // The logic could be modified to accept ccw loops, by switching north and south
     assert!(turn_count < 0);
     let multi = if turn_count < 0 { 1 } else { -1 };
-    println!("Need to check {} rows", max_y - min_y + 1);
+    //println!("Need to check {} rows", max_y - min_y + 1);
     (min_y..=max_y).map(|row_id| {
         let i = row_id - min_y;
         if i % 10000 == 0{
@@ -258,6 +336,7 @@ fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
             }
             prev_x = x;
         }
+        println!("Row: {}, area: {}", row_id, a);
         a
     }).sum()
 }
