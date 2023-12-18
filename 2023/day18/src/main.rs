@@ -3,6 +3,7 @@ extern crate num_derive;
 use clap::Parser;
 use std::fs;
 use std::fmt;
+use std::cmp::{max, min};
 use std::collections::BTreeMap;
 use indexmap::IndexMap;
 use nom::{
@@ -11,6 +12,7 @@ use nom::{
     combinator::map_res,
     sequence::tuple};
 use regex::Regex;
+use num_format::{Locale, ToFormattedString};
 
 
 #[derive(Parser, Debug)]
@@ -29,7 +31,10 @@ fn main() {
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
-    println!("Part 2 answer is {}", res.1);
+    // Should be 
+    let target: i64 = 159485361249806;
+    println!("Part 2 answer is {}", res.1.to_formatted_string(&Locale::fr));
+    println!("Part 2 expected  {}", target.to_formatted_string(&Locale::fr));
 }
 
 #[derive(Debug, PartialEq, Eq, Clone, Hash, Copy, FromPrimitive)]
@@ -185,14 +190,14 @@ fn read_contents(cont: &str) -> (i64, i64) {
 
     let digs: Vec<&Dig> = dig_pairs.iter().map(|(a,_)| {a}).collect();
     let digs_alt: Vec<&Dig> = dig_pairs.iter().map(|(_,b)| {b}).collect();
-    let part1 = analyze_digs(digs);
+    let part1 = analyze_digs(digs, false);
     println!("Part 1 answer is {}", part1);
-    let part2 = analyze_digs(digs_alt);
+    let part2 = analyze_digs(digs_alt, true);
     //let part2 = 0;
     (part1, part2)
 }
 
-fn analyze_digs(digs: Vec<&Dig>) -> i64 {
+fn analyze_digs(digs: Vec<&Dig>, verbose: bool) -> i64 {
     let start_x: i64 = 0;
     let start_y: i64 = 0;
 
@@ -202,7 +207,7 @@ fn analyze_digs(digs: Vec<&Dig>) -> i64 {
     let mut turn_count = 0; // CCW increases, CW decreases
     let mut diglines: Vec<DigLineVertical> = Vec::new();
     let mut diglines_horizontal: Vec<DigLineHorizontal> = Vec::new();
-    dbg!(&digs);
+
     for (_i,d) in digs.iter().enumerate() {
         let dir = d.direction;
         let (dx, dy) = dir.get_d();
@@ -221,40 +226,43 @@ fn analyze_digs(digs: Vec<&Dig>) -> i64 {
     let max_y = diglines.iter().map(|d| {d.max_y}).max().unwrap();
     let min_y = diglines.iter().map(|d| {d.min_y}).min().unwrap();
 
-    for d in &diglines {
-        match d.direction {
-            Direction::North | Direction::South => {
-                println!("x: {}, y: {} - {}", d.x, d.min_y, d.max_y);
-            },
-            _ => (),
-        }
-    }
-
-
+    // We should have arrived at the start
     assert_eq!(x, start_x);
     assert_eq!(y, start_y);
 
+    // Sort the array here, otherwise we would need to sort the intersection array every time
+    // separately
     diglines.sort_by_key(|k| k.x);
-    area3(diglines, diglines_horizontal, turn_count, min_y, max_y) as i64
+    area3(diglines, diglines_horizontal, turn_count, min_y, max_y, verbose) as i64
 }
 
 
-fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizontal>, turn_count: i64, min_y: i64, max_y: i64) -> i64 {
+fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizontal>, turn_count: i64, min_y: i64, max_y: i64, verbose: bool) -> i128 {
     let multi = if turn_count < 0 { 1 } else { -1 };
     dbg!(&diglines_horizontal);
     let count = max_y - min_y;
-    (min_y..=max_y).map(|row_id| {
+    let mut row_id = min_y;
+    let mut summed_area: i128 = 0;
+    if verbose {
+        println!("Row: {}, Area: {}", row_id, summed_area);
+    }
+    loop {
+        if row_id > max_y {
+            break
+        }
         let i = row_id - min_y;
-        if i % 100000 == 0{
+        if (i % 100000 == 0) & verbose{
             println!("i: {} / {}", i, count);
         }
-        let intersects: Vec<(i64, Direction)> = diglines.iter().filter_map(|d| {
+        // Since the input vector should be sorted, intersects will also be sorted
+        let intersects: Vec<(i64, Direction, i64, i64)> = diglines.iter().filter_map(|d| {
             if d.intersects(row_id) {
-                Some((d.x, d.direction))
+                Some((d.x, d.direction, d.min_y, d.max_y))
             } else {
                 None
             }
         }).collect();
+
         let horizontals: Vec<&DigLineHorizontal> = diglines_horizontal.iter().filter_map(|d| {
             if d.y == row_id {
                 Some(d)
@@ -262,13 +270,32 @@ fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizon
                 None
             }
         }).collect();
-        if intersects.len() == 0 {
-            return 0;
-        }
+
+
+        // As long as there are no horizontal sections we can jump forward to the next horizontal
+        let common_length = if horizontals.len() == 0 {
+            let mut common_max: i64 = max_y;
+            match diglines_horizontal.iter().filter_map(|h| {
+                if h.y > row_id {
+                    Some(h.y)
+                } else {
+                    None
+                }
+            }).min() {
+                None => (),
+                Some(h) => {
+                    common_max = h;
+                }
+                };
+            max(1, common_max - row_id)
+        } else {
+            1
+        };
+
         let mut prev_x = intersects[0].0 - 1;
         let mut inside = -1;
         let mut a: i64 = 0;
-        for (x, dir) in intersects {
+        for (x, dir, _min_y, _max_y) in intersects {
             a += 1;
             //dbg!(&dir);
             if inside > 0 {
@@ -282,10 +309,8 @@ fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizon
                         None
                     }
                 }).sum::<i64>();
-                //println!("{} area from horizontal", tmp);
                 a += tmp;
             }
-            //println!("Intersect at {} ({}), area: {}", x, dir, a);
             match dir {
                 Direction::North => {
                     inside = 1 * multi;
@@ -297,8 +322,17 @@ fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizon
             }
             prev_x = x;
         }
-        a
-    }).sum()
+        summed_area += (a * common_length) as i128;
+        if common_length > 1 {
+            row_id += common_length;
+        } else {
+            row_id += common_length;
+        }
+        if verbose {
+            println!("Row: {}, horizontals: {},  Area: {}", row_id, horizontals.len(), summed_area);
+        }
+    };
+    return summed_area;
 }
 
 fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
