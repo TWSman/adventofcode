@@ -3,6 +3,12 @@ use std::fs;
 use regex::Regex;
 use std::collections::HashMap;
 
+use rand::prelude::*;
+
+extern crate rayon;
+
+use rayon::prelude::*;
+
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -14,6 +20,7 @@ struct Args {
 
 
 fn main() {
+    rayon::ThreadPoolBuilder::new().num_threads(8).build_global().unwrap();
     let args = Args::parse();
 
     let contents = fs::read_to_string(&args.input)
@@ -50,7 +57,7 @@ impl Component {
     }
 }
 
-#[derive(Clone,Debug, Copy)]
+#[derive(Clone,Debug, Copy, PartialEq, Eq, Hash)]
 enum Factor {
     CoolFactor,
     Musicality,
@@ -98,6 +105,14 @@ impl Rule {
 
                 Rule {min_val: min_val, max_val: max_val, factor: Some(factor), target: target}
             }
+        }
+    }
+
+    fn get_val(&self) -> Option<i64> {
+        match (self.min_val, self.max_val) {
+            (Some(v), None) => Some(v),
+            (None, Some(v)) => Some(v),
+            _ => None,
         }
     }
 
@@ -184,6 +199,19 @@ impl WorkFlow {
             };
         }
     }
+
+    fn get_limits(&self, limits: &mut HashMap<Factor, Vec<i64>>) {
+        for rule in &self.rules {
+            match rule.factor {
+                None => continue,
+                Some(factor) => {
+                    limits.get_mut(&factor).unwrap().push(rule.get_val().unwrap());
+                    //limits.get_mut(&factor).unwrap().push(rule.get_val().unwrap() + 1);
+                    //limits.get_mut(&factor).unwrap().push(rule.get_val().unwrap() - 1);
+                },
+            }
+        }
+    }
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
@@ -200,23 +228,71 @@ fn read_contents(cont: &str) -> (i64, i64) {
     }
     
     let res1 = components.iter().map(|c| {
-        let mut workflow = workflows.get("in").unwrap();
-        loop {
-            match workflow.run(c) {
-                CheckResult::Score(score) => {return score;},
-                CheckResult::Target(target) => {
-                    workflow = workflows.get(&target).unwrap()},
-            }
-        }
+        get_score(&c, &workflows)
     }).sum();
     let res2 = part2(&workflows);
     (res1, res2)
 }
 
+fn get_score(component: &Component, workflows: &HashMap<String, WorkFlow>) -> i64{
+    let mut workflow = workflows.get("in").unwrap();
+    loop {
+        match workflow.run(component) {
+            CheckResult::Score(score) => {return score;},
+            CheckResult::Target(target) => {
+                workflow = workflows.get(&target).unwrap()},
+        }
+    }
+}
+
+// 131757030400000 is too low
+// 131766159360000 is too low
+// 131776159360000 is too low
+// 131793696640000 is ?
+// 131802378240000 is ?
 fn part2(workflows: &HashMap<String, WorkFlow>) -> i64 {
-    let min_val = 1;
-    let max_val = 4000;
-    0
+    let mut limits: HashMap<Factor, Vec<i64>> = HashMap::new();
+    limits.insert(Factor::CoolFactor, vec![1,4000]);
+    limits.insert(Factor::Musicality, vec![1,4000]);
+    limits.insert(Factor::Shininess, vec![1,4000]);
+    limits.insert(Factor::Aero, vec![1,4000]);
+
+    // Limits are the limit values, these are the failing ones
+    for wf in workflows.values() {
+        wf.get_limits(&mut limits);
+    }
+    //dbg!(&limits);
+    let limit_count: i64 = limits.values().map(|v|{
+        v.len() as i64
+    }).product();
+    dbg!(&limit_count);
+
+    let _min_val = 1;
+    let max_val: i64 = 4000;
+    let n_combos = max_val.pow(4);
+    //let tries = 500_000_000; 
+    //let tries = 50_000_000;  // Takes 4 minutes on single thread
+    //1e7 per minute per thread
+    let tries = 8_000; // 10 minutes on 8 threads
+
+    let successes: i64 = (0..tries).into_par_iter().map(|_| {
+        let comp = Component {
+            cool_factor: get_random(),
+            musicality: get_random(),
+            aero: get_random(),
+            shininess: get_random(),
+        };
+        match get_score(&comp, &workflows) {
+            i if i > 0 => 1,
+            _ => 0
+        }
+    }).sum();
+    let ratio = (successes as f64) / (tries as f64);
+    (ratio * (n_combos as f64)).round() as i64
+}
+
+fn get_random() -> i64{
+    (1 + rand::random::<u64>() % 4000) as i64
 }
 
 
