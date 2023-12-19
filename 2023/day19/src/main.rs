@@ -2,13 +2,7 @@ use clap::Parser;
 use std::fs;
 use regex::Regex;
 use std::collections::HashMap;
-
-use rand::prelude::*;
-
-extern crate rayon;
-
-use rayon::prelude::*;
-
+use std::fmt;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -20,7 +14,6 @@ struct Args {
 
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(8).build_global().unwrap();
     let args = Args::parse();
 
     let contents = fs::read_to_string(&args.input)
@@ -108,14 +101,6 @@ impl Rule {
         }
     }
 
-    fn get_val(&self) -> Option<i64> {
-        match (self.min_val, self.max_val) {
-            (Some(v), None) => Some(v),
-            (None, Some(v)) => Some(v),
-            _ => None,
-        }
-    }
-
     fn check(&self, component: &Component) -> Option<&Target> {
         let val = match self.factor {
             None => {
@@ -151,6 +136,16 @@ enum Target {
     Goto(String),
 }
 
+impl fmt::Display for Target {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Target::Accept => write!(f, "Accept"),
+            Target::Reject => write!(f, "Reject"),
+            Target::Goto(s) => write!(f, "{}", format!("Goto {s}")),
+        }
+    }
+}
+
 #[derive(Clone,Debug)]
 struct WorkFlow {
     name: String,
@@ -162,6 +157,87 @@ enum CheckResult {
     Target(String),
 }
 
+#[derive(Clone,Debug)]
+struct ValRange {
+    min: i64, // Inclusive
+    max: i64, // Inclusive
+}
+
+impl ValRange {
+    // Split val will be included in lower range
+    fn split(&self, val: i64) -> (ValRange, ValRange) {
+        (ValRange{min: self.min, max: val }, ValRange{ min: val + 1, max: self.max })
+    }
+
+    fn len(&self) -> i64 {
+        self.max - self.min + 1
+    }
+}
+
+#[derive(Clone,Debug)]
+struct PossibilitySpace {
+    cool_factor: ValRange,
+    musicality: ValRange,
+    aero: ValRange,
+    shininess: ValRange,
+}
+
+impl PossibilitySpace {
+    fn new(cool_factor: ValRange, musicality: ValRange, aero: ValRange, shininess: ValRange) -> PossibilitySpace {
+        PossibilitySpace {
+            cool_factor: cool_factor,
+            musicality: musicality,
+            aero: aero,
+            shininess: shininess,
+        }
+    }
+
+    fn size(&self) -> i64 {
+        self.cool_factor.len() * self.musicality.len() * self.aero.len() * self.shininess.len()
+    }
+
+    // Split will be included in lower option
+    fn split(&self, factor: Factor, split: i64) -> (Option<PossibilitySpace>, Option<PossibilitySpace>) {
+        let mut first_split = self.clone();
+        let mut second_split = self.clone();
+        match factor {
+            Factor::CoolFactor => {
+                let (a,b) = self.cool_factor.split(split);
+                first_split.cool_factor = a;
+                if b.len() <= 0 {
+                    return (Some(first_split), None)
+                }
+                second_split.cool_factor = b;
+            },
+            Factor::Musicality => {
+                let (a,b) = self.musicality.split(split);
+                first_split.musicality = a;
+                if b.len() <= 0 {
+                    return (Some(first_split), None)
+                }
+                second_split.musicality = b;
+            },
+            Factor::Aero => {
+                let (a,b) = self.aero.split(split);
+                first_split.aero = a;
+                if b.len() <= 0 {
+                    return (Some(first_split), None)
+                }
+                second_split.aero = b;
+            },
+            Factor::Shininess => {
+                let (a,b) = self.shininess.split(split);
+                first_split.shininess = a;
+                if b.len() <= 0 {
+                    return (Some(first_split), None)
+                }
+                second_split.shininess = b;
+            },
+        }
+        (Some(first_split), Some(second_split))
+    }
+}
+
 impl WorkFlow {
     fn new(input: &str) -> WorkFlow {
         let re = Regex::new(r"(\w*)\{(.*)\}").unwrap();
@@ -171,7 +247,85 @@ impl WorkFlow {
         WorkFlow {name: name, rules: rules}
     }
 
-    fn run(&self, component: &Component) -> CheckResult {
+    fn part2(&self, start_space: PossibilitySpace, workflows: &HashMap<String, WorkFlow>) -> i64 {
+        let mut current_space = start_space.clone();
+        let mut rules_iter = self.rules.iter();
+        let mut rule = rules_iter.next().unwrap();
+        let mut sum = 0;
+        loop {
+            match rule.factor {
+                None => {
+                    match &rule.target {
+                        Target::Accept => { sum += current_space.size(); break; },
+                        Target::Reject => { break; }
+                        Target::Goto(target) => {
+                            let wf = workflows.get(target).unwrap();
+                            sum += wf.part2(current_space, workflows);
+                            break;
+                        }
+                    }
+                },
+                Some(factor) => {
+                    match rule.min_val {
+                        None => (),
+                        Some(val) =>  {
+                            // We have a minimum value. This value should be in the lower
+                            // split
+                            // i.e. val should in first space
+                            let (space1, space2) = current_space.split(factor, val);
+                            // Passing space, i.e. second space should go to target
+                            // First space continues to next rule
+                            match space2 {
+                                None => (),
+                                Some(space) => {
+                                    match &rule.target {
+                                        Target::Goto(target) => {
+                                            let wf = workflows.get(target).unwrap();
+                                            sum += wf.part2(space, workflows);
+                                        },
+                                        Target::Accept => { sum += space.size(); }
+                                        Target::Reject => (),
+                                    };
+                                }
+                            }
+                            current_space = space1.unwrap();
+                            rule = rules_iter.next().unwrap();
+                            continue;
+                        }
+                    };
+                    match rule.max_val {
+                        None => (),
+                        Some(val) =>  {
+                            // We have a maximum value. This value should be in the upper
+                            // split
+                            // i.e. val -1 should in first space
+                            let (space1, space2) = current_space.split(factor, val - 1);
+                            // Passing space, i.e. first space should go to target
+                            // Second space continues to next rule
+                            match space1 {
+                                None => (),
+                                Some(space) => {
+                                    match &rule.target {
+                                        Target::Goto(target) => {
+                                            let wf = workflows.get(target).unwrap();
+                                            sum += wf.part2(space, workflows);
+                                        },
+                                        Target::Accept => { sum += space.size(); },
+                                        Target::Reject => (),
+                                    };
+                                }
+                            }
+                            current_space = space2.unwrap();
+                            rule = rules_iter.next().unwrap();
+                        }
+                    };
+                }
+            }
+        }
+        sum
+    }
+
+    fn part1(&self, component: &Component) -> CheckResult {
         let mut rules_iter = self.rules.iter();
         let mut rule = rules_iter.next().unwrap();
         loop {
@@ -199,19 +353,6 @@ impl WorkFlow {
             };
         }
     }
-
-    fn get_limits(&self, limits: &mut HashMap<Factor, Vec<i64>>) {
-        for rule in &self.rules {
-            match rule.factor {
-                None => continue,
-                Some(factor) => {
-                    limits.get_mut(&factor).unwrap().push(rule.get_val().unwrap());
-                    //limits.get_mut(&factor).unwrap().push(rule.get_val().unwrap() + 1);
-                    //limits.get_mut(&factor).unwrap().push(rule.get_val().unwrap() - 1);
-                },
-            }
-        }
-    }
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
@@ -237,7 +378,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
 fn get_score(component: &Component, workflows: &HashMap<String, WorkFlow>) -> i64{
     let mut workflow = workflows.get("in").unwrap();
     loop {
-        match workflow.run(component) {
+        match workflow.part1(component) {
             CheckResult::Score(score) => {return score;},
             CheckResult::Target(target) => {
                 workflow = workflows.get(&target).unwrap()},
@@ -245,54 +386,11 @@ fn get_score(component: &Component, workflows: &HashMap<String, WorkFlow>) -> i6
     }
 }
 
-// 131757030400000 is too low
-// 131766159360000 is too low
-// 131776159360000 is too low
-// 131793696640000 is ?
-// 131802378240000 is ?
 fn part2(workflows: &HashMap<String, WorkFlow>) -> i64 {
-    let mut limits: HashMap<Factor, Vec<i64>> = HashMap::new();
-    limits.insert(Factor::CoolFactor, vec![1,4000]);
-    limits.insert(Factor::Musicality, vec![1,4000]);
-    limits.insert(Factor::Shininess, vec![1,4000]);
-    limits.insert(Factor::Aero, vec![1,4000]);
-
-    // Limits are the limit values, these are the failing ones
-    for wf in workflows.values() {
-        wf.get_limits(&mut limits);
-    }
-    //dbg!(&limits);
-    let limit_count: i64 = limits.values().map(|v|{
-        v.len() as i64
-    }).product();
-    dbg!(&limit_count);
-
-    let _min_val = 1;
-    let max_val: i64 = 4000;
-    let n_combos = max_val.pow(4);
-    //let tries = 500_000_000; 
-    //let tries = 50_000_000;  // Takes 4 minutes on single thread
-    //1e7 per minute per thread
-    let tries = 8_000; // 10 minutes on 8 threads
-
-    let successes: i64 = (0..tries).into_par_iter().map(|_| {
-        let comp = Component {
-            cool_factor: get_random(),
-            musicality: get_random(),
-            aero: get_random(),
-            shininess: get_random(),
-        };
-        match get_score(&comp, &workflows) {
-            i if i > 0 => 1,
-            _ => 0
-        }
-    }).sum();
-    let ratio = (successes as f64) / (tries as f64);
-    (ratio * (n_combos as f64)).round() as i64
-}
-
-fn get_random() -> i64{
-    (1 + rand::random::<u64>() % 4000) as i64
+    let default_range = ValRange {min: 1, max: 4000};
+    let startspace = PossibilitySpace::new(default_range.clone(), default_range.clone(), default_range.clone(), default_range.clone());
+    let workflow = workflows.get("in").unwrap();
+    workflow.part2(startspace, workflows)
 }
 
 
