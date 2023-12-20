@@ -87,7 +87,7 @@ fn lcm(vals: Vec<i64>) -> i64 {
             }
             let mut res = v;
             let mut i = 0;
-            let mut remainder = 0;
+            let mut remainder;
             loop {
                 (res, remainder) = (res / p, res %p);
                 if remainder > 0 {
@@ -109,10 +109,6 @@ fn lcm(vals: Vec<i64>) -> i64 {
             panic!("No factors for {}", v);
         }
     }
-    dbg!(&counts);
-    // 267 781 370 727 398 400 is too high
-    // 538 163 941 620 832 256 also too high
-    //7 890 944 too low
     counts.iter().map(|(prime,pow)| {
         prime.pow(*pow)
     }).product()
@@ -235,9 +231,19 @@ fn part2(input: &str) -> i64 {
                         v.push(button_presses);
                     }
                     *old_type = mem.clone();
-                    if (v.len() > 3) & (c == &-1) {
-                        *c = v[2] - v[1];
-                        dbg!(&v);
+                    if (v.len() > 2048) & (c == &-1) {
+                        for w in 1..=2048 {
+                            let tmp_arr = &v.windows(w+1).map(|x| {x[w] - x[0]}).collect::<Vec<_>>();
+                            if tmp_arr.iter().max() == tmp_arr.iter().min() {
+                                *c = v[w] - v[0];
+                                println!("Loop size: {}, in {} parts", c, w);
+                                break
+                            }
+                        }
+                        if c == &-1 {
+                            dbg!(&v.windows(2).map(|x| {x[1] - x[0]}).collect::<Vec<_>>());
+                            panic!("No loop found!");
+                        }
                     }
                 }
 
@@ -251,7 +257,6 @@ fn part2(input: &str) -> i64 {
             Some(p) => p,
         };
 
-        //println!("Send {} -{} -> {}", &pulse.from, &pulse.ptype, &pulse.to);
         if pulse.to == "output" {
             continue;
         }
@@ -262,6 +267,10 @@ fn part2(input: &str) -> i64 {
             pulses.push_back(r);
         }
     }
+}
+
+fn is_all_same3(arr: &[usize]) -> bool {
+    arr.windows(2).all(|w| w[0] == w[1])
 }
 
 #[derive(Debug, Clone)]
