@@ -81,21 +81,24 @@ fn taxicab(x1: i64, y1: i64, x2: i64, y2: i64) -> i64{
     i64::abs(x1-x2) + i64::abs(y1-y2)
 }
 
-fn print(blocks: &HashMap<(i64,i64), Block>, n_rows: i64, n_cols: i64) -> String {
-    let str = (0..n_rows).map(|i_row| {
+fn print(blocks: &HashMap<(i64,i64), Block>, paths: &HashSet<PathHead>, n_rows: i64, n_cols: i64) -> String {
+    let mut str = (0..n_rows).map(|i_row| {
         let x = (0..n_cols).map(|i_col| {
             let tmp: String = 
             match blocks.get(&(i_col, i_row)) {
                 None => panic!("Could not find marker at {} {}", i_col, i_row),
                 Some(b) if b.block_type == BlockType::Rock => "#",
                 Some(b) if b.block_type == BlockType::Start => "S",
-                Some(b) if b.visited => "O",
                 Some(_b) => ".",
             }.to_string();
             tmp
         }).collect::<Vec<_>>().join("");
         x
     }).collect::<Vec<_>>().join("\n");
+    for p in paths {
+        let i = ((1+n_cols) * p.y + p.x) as usize;
+        str.replace_range(i..(i+1), "O");
+    }
     str
 }
 
@@ -107,7 +110,7 @@ fn main() {
         .expect("Should have been able to read the file");
 
     // 0 cycles means just one tilt to north (part1)
-    let res = read_contents(&contents, 64);
+    let res = part1(&contents, 64);
     println!("Part 1 answer is {}", res);
 
 }
@@ -135,16 +138,15 @@ struct Block {
     x: i64,
     y: i64,
     block_type: BlockType,
-    visited: bool,
 }
 
 impl Block {
     fn new(x:i64,y:i64, block_type: BlockType) -> Block {
-        Block {x:x, y:y, block_type: block_type, visited: false}
+        Block {x:x, y:y, block_type: block_type}
     }
 }
 
-fn read_contents(cont: &str, steps: i64) -> i64 {
+fn part1(cont: &str, steps: i64) -> i64 {
     let line_width = cont.lines().next().expect("Should be at least 1 line").len() as i64 + 1;
 
     let mut blocks: HashMap<(i64,i64), Block> = HashMap::new();
@@ -170,10 +172,11 @@ fn read_contents(cont: &str, steps: i64) -> i64 {
             },
         }
     }
-    let mut paths: Vec<PathHead> = vec![PathHead::new(start_x, start_y)];
+    let mut paths: HashSet<PathHead> = HashSet::new();
+    paths.insert(PathHead::new(start_x, start_y));
     for _ in 0..steps {
         let mut new_paths: HashSet<PathHead> = HashSet::new();
-        for p in &paths {
+        for p in paths.drain() {
             for direction in Direction::iter() {
                 let (dx, dy) = direction.get_dx();
                 let x = dx + p.x;
@@ -181,23 +184,17 @@ fn read_contents(cont: &str, steps: i64) -> i64 {
                 match blocks.get_mut(&(x,y)) {
                     None => continue,
                     Some(b) if b.block_type == BlockType::Rock => continue,
-                    Some(b) if b.visited => continue,
                     Some(b) => {
                         new_paths.insert(PathHead::new(x,y));
-                        b.visited = true;
                     }
                 }
                 
             }
         }
-        for p in new_paths {
-            paths.push(p);
-        }
-        println!("\n{}", print(&blocks, max_y, line_width - 1));
+        paths = new_paths;
+        println!("\n{}", print(&blocks, &paths, max_y, line_width - 1));
     }
-    blocks.values().filter(|v| {
-        v.visited
-    }).count() as i64
+    paths.len() as i64
 }
 
 #[cfg(test)]
@@ -217,9 +214,7 @@ mod tests {
 .##.#.####.
 .##..##.##.
 ...........";
-        //println!("{}", a);
-        assert_eq!(read_contents(&a, 6), 16);
-        //assert_eq!(read_contents(&a).1, 94);
+        assert_eq!(part1(&a, 6), 16);
     }
 
 }
