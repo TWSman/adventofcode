@@ -212,18 +212,20 @@ fn part1(cont: &str, steps: i64) -> i64 {
         visited & ((x + y) % 2 == 0)
     }).count() as i64
 }
-
+// 600347902836308 is too high
+// 600336032593632 is too low
 // TODO: Figure out repetition pattern
 fn part2(cont: &str, steps: i64) -> i64 {
     let (start_x, start_y, n_cols, n_rows, mut blocks) = get_blocks(cont);
     let mut paths: HashSet<PathHead> = HashSet::new();
     paths.insert(PathHead::new(start_x, start_y));
-    let path_cache: HashSet<HashSet<PathHead>> = HashSet::new();
+    let mut path_cache: HashMap<Vec<i64>, (i64, i64)> = HashMap::new();
     for i in 1..=steps {
-        if i % 1000 == 0 {
+        if (steps - i)  % 262 == 0 {
             println!("step: {}, {} visited", i, get_count(&blocks));
         }
         let mut new_paths: HashSet<PathHead> = HashSet::new();
+        // Loop seems to be 131 steps
         for p in paths.drain() {
             for direction in Direction::iter() {
                 let (dx, dy) = direction.get_dx();
@@ -239,21 +241,60 @@ fn part2(cont: &str, steps: i64) -> i64 {
                     Some(b) if b.visited.contains_key(&(ix,iy)) => continue,
                     Some(b) => {
                         b.visited.insert((ix,iy), i);
-                        if (x == 0) & (y == 0) {
-                            println!("{}, {} on step {}", ix, iy,i);
-                            //dbg!(&b.visited.iter().map(|((ix,iy), i_step)| {
-                                //format!("{}, {} on step {}", ix, iy, i_step)
-                            //}).collect::<Vec<_>>());
-                        }
+                        //if (x == 4) & (y == 4) {
+                        //    let visits = b.visited.iter().count();
+                        //    if (iy == 0) {
+                        //        println!("{}, {} on step {}, total visits: {}", ix, iy,i, visits);
+                        //    }
+                        //    //dbg!(&b.visited.iter().map(|((ix,iy), i_step)| {
+                        //        //format!("{}, {} on step {}", ix, iy, i_step)
+                        //    //}).collect::<Vec<_>>());
+                        //}
                         new_paths.insert(PathHead::new(p.x + dx, p.y + dy));
                     }
                     v => panic!("Got nothing with {}, {}", x,y),
                 }
-                
+            }
+        }
+        //println!("\ni: {}\n{}", i, print(&blocks, &paths, n_rows, n_cols));
+        let cached_set = new_paths.iter().map(|head| {
+            let (x,y) = (head.x.rem_euclid(n_cols), head.y.rem_euclid(n_rows));
+            (1+n_cols) * x + y
+        }).collect::<HashSet<_>>();
+
+        let mut cached_paths = cached_set.into_iter().collect::<Vec<_>>();
+        cached_paths.sort();
+        //dbg!(&cached_paths);
+
+        match path_cache.get(&cached_paths) {
+            None => {
+                path_cache.insert(cached_paths, (i, get_count(&blocks)));
+            },
+            Some((step, count)) => {
+                let new_count = get_count(&blocks);
+                let increased_count = new_count - count;
+                if (steps - i)  % 262 == 0 {
+                    let loops_to_go: i64 = 1 + (steps -i) / 262;
+                    let loop_number = (i - 327) / 262;
+                    println!("step {} is a Repeat from step {}, {} new visits", i, step, increased_count);
+                    // Number of visits increases by n * 117353 every loop
+                    dbg!((loop_number - 1) * 117352 + 205228);
+                    // 91508 visits at step 327
+                    
+                    let est: i64 = 91508 + (0..loop_number).map(|n| n*117352 + 205228).sum::<i64>();
+                    dbg!(&est);
+                    let final_est: i64 = 91508 + (0..loops_to_go).map(|n| n*117352 + 205228).sum::<i64>();
+                    dbg!(&final_est);
+                    //println!("n: {}, {} Loops to go", loop_number, loops_to_go);
+                    
+                    let est_increase = loop_number * 117352 + 205228;
+                    path_cache.insert(cached_paths, (i, get_count(&blocks)));
+                }
+                //println!("\n{}", print(&blocks, &paths, n_rows, n_cols));
+                //todo!();
             }
         }
         paths = new_paths;
-        //dbg!(&paths);
         //println!("\n{}", print(&blocks, &paths, n_rows, n_cols));
     }
     //dbg!(&blocks);
