@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::cmp::max;
 use std::fmt::Display;
 use core::fmt;
-use num_traits::FromPrimitive;
 use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
@@ -42,18 +41,6 @@ impl Display for Direction {
 }
 
 impl Direction {
-    fn opposite(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 2) % 4).unwrap()
-    }
-
-    fn cw(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 1) % 4).unwrap()
-    }
-
-    fn ccw(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 3) % 4).unwrap()
-    }
-
     fn get_dx(&self) -> (i64,i64) {
         match self {
             Direction::East => ( 1,  0),
@@ -78,18 +65,16 @@ impl PathHead {
 }
 
 
-fn print(blocks: &BTreeMap<(i64,i64), Block>, paths: &HashSet<PathHead>, n_rows: i64, n_cols: i64) -> String {
+fn print(blocks: &BTreeMap<(i64,i64), Block>, _paths: &HashSet<PathHead>, n_rows: i64, n_cols: i64) -> String {
     let mut str = (0..n_rows).map(|i_row| {
         let x = (0..n_cols).map(|i_col| {
-            let tmp: String = 
             match blocks.get(&(i_col, i_row)) {
                 None => panic!("Could not find marker at {} {}", i_col, i_row),
                 Some(b) if b.block_type == BlockType::Rock => "#".to_string(),
                 Some(b) if b.block_type == BlockType::Start => "S".to_string(),
                 Some(b) if b.visited.len() > 0 => format!("{}", b.visited.len()),
                 Some(_b) => ".".to_string(),
-            };
-            tmp
+            }
         }).collect::<Vec<_>>().join("");
         x
     }).collect::<Vec<_>>().join("\n");
@@ -116,6 +101,7 @@ fn main() {
     let res = part1(&contents, 64);
     println!("Part 1 answer is {}", res);
 
+                             //26_501_365
     let res = part2(&contents, 26_501_365);
     println!("Part 2 answer is {}", res);
 
@@ -212,17 +198,18 @@ fn part1(cont: &str, steps: i64) -> i64 {
         visited & ((x + y) % 2 == 0)
     }).count() as i64
 }
-// 600347902836308 is too high
-// 600336032593632 is too low
-// TODO: Figure out repetition pattern
+// 600336060511101 is the correct answer
 fn part2(cont: &str, steps: i64) -> i64 {
     let (start_x, start_y, n_cols, n_rows, mut blocks) = get_blocks(cont);
     let mut paths: HashSet<PathHead> = HashSet::new();
     paths.insert(PathHead::new(start_x, start_y));
     let mut path_cache: HashMap<Vec<i64>, (i64, i64)> = HashMap::new();
-    for i in 1..=steps {
-        if (steps - i)  % 262 == 0 {
-            println!("step: {}, {} visited", i, get_count(&blocks));
+    let mut increase: Vec<i64> = Vec::new();
+    let mut visit_counts: Vec<i64> = Vec::new();
+    let loop_size = 262;
+    for i in 0..steps {
+        if (steps - i)  % loop_size == 0 {
+            println!("step: {}, {} visited", i, get_count(&blocks, steps % 2));
         }
         let mut new_paths: HashSet<PathHead> = HashSet::new();
         // Loop seems to be 131 steps
@@ -236,23 +223,13 @@ fn part2(cont: &str, steps: i64) -> i64 {
                     (dy + p.y).div_euclid(n_rows),
                     (dy + p.y).rem_euclid(n_rows));
                 match blocks.get_mut(&(x,y)) {
-                    // None => continue,
                     Some(b) if b.block_type == BlockType::Rock => continue,
                     Some(b) if b.visited.contains_key(&(ix,iy)) => continue,
                     Some(b) => {
                         b.visited.insert((ix,iy), i);
-                        //if (x == 4) & (y == 4) {
-                        //    let visits = b.visited.iter().count();
-                        //    if (iy == 0) {
-                        //        println!("{}, {} on step {}, total visits: {}", ix, iy,i, visits);
-                        //    }
-                        //    //dbg!(&b.visited.iter().map(|((ix,iy), i_step)| {
-                        //        //format!("{}, {} on step {}", ix, iy, i_step)
-                        //    //}).collect::<Vec<_>>());
-                        //}
                         new_paths.insert(PathHead::new(p.x + dx, p.y + dy));
                     }
-                    v => panic!("Got nothing with {}, {}", x,y),
+                    _ => panic!("Got nothing with {}, {}", x,y),
                 }
             }
         }
@@ -264,63 +241,38 @@ fn part2(cont: &str, steps: i64) -> i64 {
 
         let mut cached_paths = cached_set.into_iter().collect::<Vec<_>>();
         cached_paths.sort();
-        //dbg!(&cached_paths);
 
         match path_cache.get(&cached_paths) {
             None => {
-                path_cache.insert(cached_paths, (i, get_count(&blocks)));
+                path_cache.insert(cached_paths, (i, get_count(&blocks, steps % 2)));
             },
-            Some((step, count)) => {
-                let new_count = get_count(&blocks);
-                let increased_count = new_count - count;
-                if (steps - i)  % 262 == 0 {
-                    let loops_to_go: i64 = 1 + (steps -i) / 262;
-                    let loop_number = (i - 327) / 262;
-                    println!("step {} is a Repeat from step {}, {} new visits", i, step, increased_count);
-                    // Number of visits increases by n * 117353 every loop
-                    dbg!((loop_number - 1) * 117352 + 205228);
-                    // 91508 visits at step 327
-                    
-                    let est: i64 = 91508 + (0..loop_number).map(|n| n*117352 + 205228).sum::<i64>();
-                    dbg!(&est);
-                    let final_est: i64 = 91508 + (0..loops_to_go).map(|n| n*117352 + 205228).sum::<i64>();
-                    dbg!(&final_est);
-                    //println!("n: {}, {} Loops to go", loop_number, loops_to_go);
-                    
-                    let est_increase = loop_number * 117352 + 205228;
-                    path_cache.insert(cached_paths, (i, get_count(&blocks)));
+            Some((_step, count)) => {
+                if (steps - i)  % loop_size == 0 {
+                    let new_count = get_count(&blocks, steps % 2);
+                    visit_counts.push(new_count);
+                    let loops_to_go: i64 = (steps -i) / loop_size;
+                    // 91853 is the count at step 327
+                    // Every 262 steps the count increases by n*117352 + 205504, where n is the
+                    // amount of 262 step loops since step 327
+                    let final_est: i64 = new_count + (0..loops_to_go).map(|n| n*117352 + 205504).sum::<i64>();
+                    return final_est;
                 }
-                //println!("\n{}", print(&blocks, &paths, n_rows, n_cols));
-                //todo!();
             }
         }
         paths = new_paths;
-        //println!("\n{}", print(&blocks, &paths, n_rows, n_cols));
     }
-    //dbg!(&blocks);
-    get_count(&blocks)
+    get_count(&blocks, steps % 2)
 }
 
-fn get_count(blocks: &BTreeMap<(i64,i64), Block>) -> i64{
+fn get_count(blocks: &BTreeMap<(i64,i64), Block>, parity: i64) -> i64 {
+    assert!(parity < 2);
+    assert!(parity > -1);
     let t = blocks.iter().map(|((x,y), b)| {
         let tmp = b.visited.iter().filter(|((ix,iy), i_step)| {
-            //(x + y + ix) % 2 == 0
-            (x + y + ix + iy) % 2 == 0
+            (x + y + ix.abs() + iy.abs()) % 2 == parity
         }).count() as i64;
-        //if tmp > 0 {
-        //    println!("{} visits in ({}, {})", tmp, x,y);
-        //}
-        //if (x+y) % 2 == 0 {
-            //if b.visited.len() > 1 {
-                //dbg!(&b);
-            //}
-            //b.visited.len() as i64
-        //} else {
-            //0
-        //}
         tmp
     }).collect::<Vec<_>>();
-    //dbg!(&t);
     t.iter().sum()
 }
 
@@ -372,15 +324,3 @@ mod tests {
     }
 
 }
-
-//  Ox1x2xOx1xO 7
-//  xOx1x#x#x#x 2
-//  1x#xOx#x1xO 4
-//  x1x1x1x1x1x 5
-//  2x1x#x#x1x1 5
-//  x#x1xSx#x#x 2
-//  1x#x1x1x1xO 5
-//  x1x1x1x#x.x 3
-//  1x#x#x#x#x. 1
-//  x#x1x#x.x#. 1
-//  7, 9, 13, 18, 23, 25, 30, 33, 34, 35
