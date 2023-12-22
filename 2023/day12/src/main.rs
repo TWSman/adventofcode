@@ -82,13 +82,13 @@ fn get_counts(n: i64, counts: &Vec<i64>) -> Option<i64> {
         //(4,5) => 10, // Not correct!
         
         //(5,3) => 10, // Not correct!
-        _ => panic!("Unknown combo extra N: {}, count: {}", extra_len, counts.len()), 
+        //_ => panic!("Unknown combo extra N: {}, count: {}", extra_len, counts.len()), 
     }
 }
 
 impl Field {
     fn new(v: &str, skim: bool) -> Field{
-        let mut vv: &str = &v.clone().replacen("..",".",10).replacen("..",".",10);
+        let mut vv: &str = &v.replacen("..",".",10).replacen("..",".",10);
         if skim {
             vv = vv.trim_matches('.');
         }
@@ -259,7 +259,7 @@ fn get_options(markers: &String) -> Vec<Vec<i64>> {
 }
 
 fn main() {
-    rayon::ThreadPoolBuilder::new().num_threads(4).build_global().unwrap();
+    rayon::ThreadPoolBuilder::new().num_threads(12).build_global().unwrap();
 
     let args = Args::parse();
 
@@ -309,7 +309,6 @@ fn read_line(input: &str, repeat: usize) -> i64 {
 
 fn read_contents_conc(cont: &str, repeat: usize) -> i64 {
     cont.lines().enumerate().collect::<Vec<_>>().par_iter().map(|(i, l)| {
-        println!("{}", i);
         println!("{}", &l);
         let tmp = read_line(&l, repeat);
         println!("{} got {}", &l, tmp);
@@ -318,7 +317,7 @@ fn read_contents_conc(cont: &str, repeat: usize) -> i64 {
 }
 
 fn read_contents(cont: &str, repeat: usize) -> i64 {
-    cont.lines().enumerate().map(|(i, l)| {
+    cont.lines().enumerate().map(|(_, l)| {
         //if i % 10 == 0 {
             //println!("{}", i);
         //}
