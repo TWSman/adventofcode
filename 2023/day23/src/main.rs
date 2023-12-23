@@ -4,7 +4,6 @@ extern crate num_derive;
 use clap::Parser;
 use std::fs;
 use std::collections::BTreeMap;
-use std::collections::HashSet;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 use std::cmp::max;
@@ -54,15 +53,6 @@ impl Direction {
     fn opposite(self) -> Direction {
         FromPrimitive::from_u8((self as u8 + 2) % 4).unwrap()
     }
-
-    fn cw(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 1) % 4).unwrap()
-    }
-
-    fn ccw(self) -> Direction {
-        FromPrimitive::from_u8((self as u8 + 3) % 4).unwrap()
-    }
-
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Copy)]
@@ -167,12 +157,11 @@ fn main() {
     let contents = fs::read_to_string(&args.input)
         .expect("Should have been able to read the file");
 
-    // 0 cycles means just one tilt to north (part1)
-    let res = part1(&contents);
+    let res = read_contents(&contents, false);
     println!("Part 1 answer is {}", res);
 
-    //let res = part2(&contents, 26_501_365);
-    //println!("Part 2 answer is {}", res);
+    let res = read_contents(&contents, true);
+    println!("Part 2 answer is {}", res);
 
 }
 
@@ -216,7 +205,7 @@ struct Path {
 
 impl Path {
     fn new(path_type: PathType) -> Path {
-        Path {path_type: path_type, visited: false}
+        Path {path_type, visited: false}
     }
 }
 
@@ -237,7 +226,7 @@ fn get_paths(cont: &str) -> (Vec2D, i64,i64, BTreeMap<(i64,i64), Path>) {
                 let path_type = PathType::new(c);
                 let mut path = Path::new(path_type.clone());
                 if (y == 0) & (path.path_type == PathType::Path) & start.is_none() {
-                    start = Some(Vec2D {x: x, y:y});
+                    start = Some(Vec2D {x, y});
                     path.visited = true;
                 }
                 paths.insert((x,y), path);
@@ -247,13 +236,12 @@ fn get_paths(cont: &str) -> (Vec2D, i64,i64, BTreeMap<(i64,i64), Path>) {
     (start.unwrap(), line_width - 1, max_y + 1, paths)
 }
 
-fn part1(cont: &str) -> i64 {
+fn read_contents(cont: &str, part2: bool) -> i64 {
     let (start, n_cols, n_rows, mut blocks) = get_paths(cont);
     let mut paths: Vec<PathHead> = Vec::new();
     let mut intersections: HashMap<Vec2D, Intersection> = HashMap::new();
     let first_intersection = Intersection::new();
     intersections.insert(start.clone(), first_intersection);
-    //println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
     paths.push(PathHead::new(
         start.clone(),
         Direction::South));
@@ -330,7 +318,6 @@ fn part1(cont: &str) -> i64 {
                 }
             }
             if cons > 1 {
-                //start_intersection.targets.push(((p.position.x, p.position.y), p.distance));
                 connections.push((p.intersection.clone(), p.position.clone(), p.distance));
                 //println!("More than 1 path");
                 match intersections.get(&p.position) {
@@ -341,18 +328,15 @@ fn part1(cont: &str) -> i64 {
                             p.position.clone(),
                             tmp);
                     },
-                    Some(inter) => {
-                        //println!("Intersection exists");
-                        //start_intersection.targets.push( ((p.position.x, p.position.y), p.distance));
-                    },
+                    _ => (),
                 };
 
-                for (x,y,dir) in &new_paths {
+                for (_x, _y, dir) in &new_paths {
                     let pos = Vec2D {x:p.position.x, y:p.position.y};
-                    let mut tmp = PathHead::new(pos, *dir);
-                    tmp.mmove(dir);
+                    let mut new_head = PathHead::new(pos, *dir);
+                    new_head.mmove(dir);
                     paths.push(
-                        tmp,
+                        new_head,
                     );
                 }
                 //println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
@@ -368,56 +352,42 @@ fn part1(cont: &str) -> i64 {
     for (start, end, distance) in connections {
         let intersection = intersections.get_mut(&start).unwrap();
         intersection.targets.push((end,distance));
-    }
-    //dbg!(&intersections);
-    println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
-    dbg!(&intersections.len());
-    for (loc, intersection) in &intersections {
-        println!("From {}", loc);
-        for (t,dist) in &intersection.targets {
-            println!("\tTo {}, {} steps", t, dist);
+        if part2 {
+            let intersection = intersections.get_mut(&end).unwrap();
+            intersection.targets.push((start,distance));
         }
     }
-    let first_path = vec![(start.clone(),0)];
-    let paths: Vec<Vec<(Vec2D, i64)>> = get_iteration(first_path,
+
+    println!("{} intersections", intersections.len());
+    println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
+    let first_path = vec![start.clone()];
+    let paths: Vec<(Vec<Vec2D>, i64)> = get_iteration(first_path,
+        0,
         &target.unwrap(),
         &intersections);
-    //dbg!(&paths);
-    let distances = paths.iter().map(|v| {
-        v.iter().map(|(_,d)| d).sum::<i64>()
-    }).collect::<Vec<_>>();
-
-    for i in 0..paths.len() {
-        let p = paths.get(i).unwrap();
-        let d = distances[i];
-        println!("\nPath {}, total distance {}", i, d);
-        for (x,dist) in p {
-            println!("\tTo {}, {} steps", x, dist);
-        }
-    }
-    dbg!(&distances);
-    *distances.iter().max().unwrap()
-    //blocks.iter().filter(|((x,y), b)| {
-    //    let visited = b.visited.contains_key(&(0,0));
-    //    visited & ((x + y) % 2 == 0)
-    //}).count() as i64
+    *paths.iter().map(|(_v,d)| d).max().unwrap()
 }
 
-fn get_iteration(current_path: Vec<(Vec2D, i64)>,
+fn get_iteration(current_path: Vec<Vec2D>,
+    current_distance: i64,
     target: &Vec2D,
-    intersections: &HashMap<Vec2D, Intersection>) -> Vec<Vec<(Vec2D, i64)>> {
+    intersections: &HashMap<Vec2D, Intersection>) -> Vec<(Vec<Vec2D>, i64)> {
 
-    let current_pos = current_path.last().unwrap().0;
+    let current_pos = current_path.last().unwrap();
     let current_int = intersections.get(&current_pos).unwrap();
-    let mut new_paths: Vec<Vec<(Vec2D, i64)>> = Vec::new();
+    let mut new_paths: Vec<(Vec<Vec2D>, i64)> = Vec::new();
     for (t, dist) in current_int.targets.iter() {
+        if current_path.contains(&t) {
+            continue;
+        }
+        let new_distance = current_distance + dist;
         let mut new_path = current_path.clone();
-        new_path.push((t.clone(), dist.clone()));
+        new_path.push(t.clone());
         if t == target {
-            new_paths.push(new_path);
+            new_paths.push((new_path, new_distance));
             return new_paths;
         }
-        let complete_paths = get_iteration(new_path, target, intersections);
+        let complete_paths = get_iteration(new_path, new_distance, target, intersections);
         for complete_path in complete_paths {
             new_paths.push(complete_path);
         }
@@ -428,26 +398,6 @@ fn get_iteration(current_path: Vec<(Vec2D, i64)>,
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn div() {
-        let a: i64 = 3;
-        let b: i64 = -3;
-        assert_eq!(a.div_euclid(2), 1);
-        assert_eq!(b.div_euclid(2), -2);
-        assert_eq!(b.rem_euclid(2), 1);
-        assert_eq!(b.div_euclid(2) * 2 + b.rem_euclid(2), b);
-        assert_eq!(b / 2, -1);
-
-        let cols: i64 = 11;
-        let x: i64 = -1;
-        assert_eq!(x.div_euclid(cols), -1);
-        assert_eq!(x.rem_euclid(cols), 10);
-
-        let x: i64 = 11;
-        assert_eq!(x.div_euclid(cols), 1);
-        assert_eq!(x.rem_euclid(cols), 0);
-    }
 
     #[test]
     fn conts() {
@@ -474,7 +424,8 @@ mod tests {
 #.###.###.#.###.#.#v###
 #.....###...###...#...#
 #####################.#";
-        assert_eq!(part1(&a), 94);
+        assert_eq!(read_contents(&a, false), 94);
+        assert_eq!(read_contents(&a, true), 154);
     }
 
 }
