@@ -129,7 +129,7 @@ fn print(blocks: &BTreeMap<(i64,i64), Path>, intersections: &HashMap<(i64,i64), 
         let x = (0..n_cols).map(|i_col| {
             match blocks.get(&(i_col, i_row)) {
                 None => panic!("Could not find marker at {} {}", i_col, i_row),
-                //Some(b) if b.visited => ".".to_string(),
+                Some(b) if b.visited => ",".to_string(),
                 Some(b) => {
                     match b.path_type {
                         PathType::Forest => "#".to_string(),
@@ -275,10 +275,22 @@ fn part1(cont: &str) -> i64 {
             None => break,
             Some(v) => v,
         };
-         //intersections.get(&(p.intersection.x, p.intersection.y)).unwrap();
+        //let mut start_intersection = match intersections.get_mut(&(p.intersection.x, p.intersection.y)) {
+        //    None => {
+        //        dbg!(&p);
+        //        panic!("");
+        //    }
+        //    Some(v) => v,
+        //};
         loop {
             println!("\nHeading {}", p.direction);
             i += 1;
+            match blocks.get_mut(&(p.position.x,p.position.y)) {
+                Some(b) => {
+                    b.visited = true;
+                }
+                None => panic!(""),
+            }
             let mut new_paths: Vec<(i64,i64, Direction)> = Vec::new();
             for direction in Direction::iter() {
                 println!("Trying {}", direction);
@@ -297,7 +309,7 @@ fn part1(cont: &str) -> i64 {
                     Some(b) if b.visited => {
                         match intersections.get(&(x,y)) {
                             None => {
-                                println!("Already visited, add new intersection");
+                                println!("Already visited, add new intersection {}, {}", x,y);
                                 intersections.insert((x,y), Intersection::new());
                                 //start_intersection.targets.push(((x,y), p.distance));
                             }
@@ -313,14 +325,13 @@ fn part1(cont: &str) -> i64 {
                                 println!("Cant go {}, Forest", direction);
                                 continue;
                             }
-                            PathType::Slope(dir) if dir == p.direction.opposite() => {
+                            PathType::Slope(dir) if dir == direction.opposite() => {
                                 println!("Cant go {}, upslope", direction);
                                 continue;
                             }
                             _ => {
                                 println!("New path {}", direction);
-                                b.visited = true;
-                                if y == n_rows {
+                                if y == n_rows - 1 {
                                     println!("Found the end");
                                     intersections.insert((x,y), Intersection::new());
                                 } else {
@@ -336,7 +347,7 @@ fn part1(cont: &str) -> i64 {
                 println!("More than 1 path");
                 match intersections.get(&(p.position.x, p.position.y)) {
                     None => {
-                        println!("Intersection does not exist");
+                        println!("Intersection {},{} does not exist", p.position.x, p.position.y);
                         let tmp = Intersection::new();
                         intersections.insert(
                             (p.position.x,
@@ -345,24 +356,26 @@ fn part1(cont: &str) -> i64 {
                     },
                     Some(inter) => {
                         println!("Intersection exists");
-                        ();//start_intersection.targets.push( ((p.position.x, p.position.y), p.distance));
+                        //start_intersection.targets.push( ((p.position.x, p.position.y), p.distance));
                     },
                 };
 
                 for (x,y,dir) in &new_paths {
-                    let pos = Vec2D {x:*x, y:*y};
+                    let pos = Vec2D {x:p.position.x, y:p.position.y};
+                    let mut tmp = PathHead::new(pos, *dir);
+                    tmp.mmove(dir);
                     paths.push(
-                        PathHead::new(pos, *dir)
+                        tmp,
                     );
                 }
                 println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
                 break;
             }
+            println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
             match new_paths.first()  {
                 None => break,
                 Some((_,_,dir)) => p.mmove(dir),
             }
-            println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
         }
         //paths = new_paths;
         //dbg!(&paths);
