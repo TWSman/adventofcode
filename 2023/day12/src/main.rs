@@ -268,8 +268,8 @@ fn main() {
     // In part 1 we add 1 one row/column for each empty one.
     // In other words multiply amount of empty space by 2
     //let res1 = read_contents(&contents, 1);
-    let res1 = read_contents_conc(&contents, 1);
-    println!("Part 1 answer is {}", res1);
+    //let res1 = read_contents_conc(&contents, 1);
+    //println!("Part 1 answer is {}", res1);
 
     let res2 = read_contents_conc(&contents, 5);
     println!("Part 2 answer is {}", res2);
@@ -283,6 +283,10 @@ enum RetType {
 }
 
 fn read_line(input: &str, repeat: usize) -> i64 {
+    if input.parse::<i64>().is_ok()  {
+        return input.parse::<i64>().unwrap();
+    }
+
     let (field, mut counts) = match input.split_whitespace().with_position().map(|(p,v)| {
         match p {
             Position::First => {
