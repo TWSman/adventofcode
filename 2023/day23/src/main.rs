@@ -3,7 +3,6 @@ extern crate num_derive;
 
 use clap::Parser;
 use std::fs;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::cmp::Ordering;
 use std::cmp::max;
@@ -13,6 +12,7 @@ use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 use num_traits::FromPrimitive;
 
+#[allow(clippy::cast_possible_truncation)]
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
@@ -33,24 +33,24 @@ enum Direction {
 impl Display for Direction {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Direction::North => write!(f, "^"),
-            Direction::South => write!(f, "v"),
-            Direction::West => write!(f, "<"),
-            Direction::East => write!(f, ">"),
+            Self::North => write!(f, "^"),
+            Self::South => write!(f, "v"),
+            Self::West => write!(f, "<"),
+            Self::East => write!(f, ">"),
         }
     }
 }
 
 impl Direction {
-    fn get_dx(&self) -> (i64,i64) {
+    const fn get_dx(self) -> (i64,i64) {
         match self {
-            Direction::East => ( 1,  0),
-            Direction::West => (-1,  0),
-            Direction::North => (0, -1),
-            Direction::South => (0, 1),
+            Self::East => ( 1,  0),
+            Self::West => (-1,  0),
+            Self::North => (0, -1),
+            Self::South => (0, 1),
         }
     }
-    fn opposite(self) -> Direction {
+    fn opposite(self) -> Self {
         FromPrimitive::from_u8((self as u8 + 2) % 4).unwrap()
     }
 }
@@ -77,18 +77,16 @@ impl Display for Vec2D {
 impl PartialOrd for Vec2D {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         if self.x < other.x {
-            return Some(Ordering::Less);
+            Some(Ordering::Less)
+        } else if self.x > other.x {
+            Some(Ordering::Greater)
+        } else if self.y < other.y {
+            Some(Ordering::Less)
+        } else if self.y > other.y {
+            return Some(Ordering::Greater)
+        } else {
+            Some(Ordering::Equal)
         }
-        if self.x > other.x {
-            return Some(Ordering::Greater);
-        }
-        if self.y < other.y {
-            return Some(Ordering::Less);
-        }
-        if self.y > other.y {
-            return Some(Ordering::Greater);
-        }
-        return Some(Ordering::Equal);
     }
 }
 
@@ -102,50 +100,43 @@ struct PathHead {
 
 
 impl PathHead {
-    fn new(position: Vec2D, direction: Direction) -> PathHead {
-        PathHead {
+    const fn new(position: Vec2D, direction: Direction) -> Self {
+        Self {
             position,
-            intersection: position.clone(),
+            intersection: position,
             distance: 0,
             direction,
         }
     }
 
-    fn mmove(&mut self, direction: &Direction) {
+    fn mmove(&mut self, direction: Direction) {
         let (dx, dy) = direction.get_dx(); 
         self.position.add(dx,dy);
-        self.direction = *direction;
+        self.direction = direction;
         self.distance += 1;
     }
 }
 
 
-fn print(blocks: &BTreeMap<(i64,i64), Path>, intersections: &HashMap<Vec2D, Intersection>, n_rows: i64, n_cols: i64) -> String {
-    let mut str = (0..n_rows).map(|i_row| {
-        let x = (0..n_cols).map(|i_col| {
-            match blocks.get(&(i_col, i_row)) {
-                None => panic!("Could not find marker at {} {}", i_col, i_row),
-                //Some(b) if b.visited => ",".to_string(),
-                Some(b) => {
-                    match b.path_type {
-                        PathType::Forest => "#".to_string(),
-                        PathType::Path => ".".to_string(),
-                        PathType::Slope(Direction::North) => "^".to_string(),
-                        PathType::Slope(Direction::South) => "v".to_string(),
-                        PathType::Slope(Direction::East) => ">".to_string(),
-                        PathType::Slope(Direction::West) => "<".to_string(),
-                    }
-                }
-            }
-        }).collect::<Vec<_>>().join("");
+fn print(blocks: &HashMap<Vec2D, Path>, intersections: &HashMap<Vec2D, Intersection>, n_rows: i64, n_cols: i64) -> String {
+    let mut str = (0..n_rows).map(|x| {
+        let x = (0..n_cols).map(|y| {
+            let coord = Vec2D {x, y};
+            blocks.get(&coord).map_or_else(|| panic!("Could not find marker at {x} {x}"), |b| match b.path_type {
+                PathType::Forest => "#".to_string(),
+                PathType::Path => ".".to_string(),
+                PathType::Slope(Direction::North) => "^".to_string(),
+                PathType::Slope(Direction::South) => "v".to_string(),
+                PathType::Slope(Direction::East) => ">".to_string(),
+                PathType::Slope(Direction::West) => "<".to_string(),
+            })
+            }).collect::<String>();
         x
     }).collect::<Vec<_>>().join("\n");
     for pos in intersections.keys() {
-        if (pos.x == n_cols) | (pos.y == n_rows) {
-            panic!();
-        }
-        let i = ((1+n_cols) * pos.y + pos.x) as usize;
-        str.replace_range(i..(i+1), "I");
+        assert!((pos.x != n_cols) & (pos.y != n_rows));
+        let i = usize::try_from((1+n_cols) * pos.y + pos.x).unwrap();
+        str.replace_range(i..=i, "I");
     }
     str
 }
@@ -154,14 +145,14 @@ fn print(blocks: &BTreeMap<(i64,i64), Path>, intersections: &HashMap<Vec2D, Inte
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
     let res = read_contents(&contents, false);
-    println!("Part 1 answer is {}", res);
+    println!("Part 1 answer is {res}");
 
     let res = read_contents(&contents, true);
-    println!("Part 2 answer is {}", res);
+    println!("Part 2 answer is {res}");
 
 }
 
@@ -173,15 +164,15 @@ enum PathType {
 }
 
 impl PathType {
-    fn new(c: char) ->PathType{
+    fn new(c: char) ->Self{
         match c {
-            '#' => PathType::Forest,
-            '.' => PathType::Path,
-            '>' => PathType::Slope(Direction::East),
-            '<' => PathType::Slope(Direction::West),
-            'v' => PathType::Slope(Direction::South),
-            '^' => PathType::Slope(Direction::North),
-            v => panic!("Unknown character {}", v),
+            '#' => Self::Forest,
+            '.' => Self::Path,
+            '>' => Self::Slope(Direction::East),
+            '<' => Self::Slope(Direction::West),
+            'v' => Self::Slope(Direction::South),
+            '^' => Self::Slope(Direction::North),
+            v => panic!("Unknown character {v}"),
         }
     }
 }
@@ -192,8 +183,8 @@ struct Intersection {
 }
 
 impl Intersection {
-    fn new() -> Intersection {
-        Intersection {targets: Vec::new()}
+    const fn new() -> Self {
+        Self {targets: Vec::new()}
     }
 }
 
@@ -204,36 +195,39 @@ struct Path {
 }
 
 impl Path {
-    fn new(path_type: PathType) -> Path {
-        Path {path_type, visited: false}
+    const fn new(path_type: PathType) -> Self {
+        Self {path_type, visited: false}
     }
 }
 
 
-fn get_paths(cont: &str) -> (Vec2D, i64,i64, BTreeMap<(i64,i64), Path>) {
-    let line_width = cont.lines().next().expect("Should be at least 1 line").len() as i64 + 1;
-    let mut paths: BTreeMap<(i64,i64), Path> = BTreeMap::new();
+fn get_paths(cont: &str) -> (Vec2D, i64,i64, HashMap<Vec2D, Path>) {
+    let line_width = cont.lines().next().expect("Should be at least 1 line").len() + 1;
+    let mut paths: HashMap<Vec2D, Path> = HashMap::new();
 
     let mut max_y = 0;
     let mut start: Option<Vec2D> = None;
     for (i,c) in cont.chars().enumerate() {
-        let y = (i as i64) / line_width;
+        let y = i/ line_width;
         max_y = max(y, max_y);
         match c {
             '\n' | ' ' => { continue; },
             c => {
-                let x = (i as i64) % line_width;
+                let x = i % line_width;
                 let path_type = PathType::new(c);
                 let mut path = Path::new(path_type.clone());
+                let coord = Vec2D {x: i64::try_from(x).unwrap(), y: i64::try_from(y).unwrap()};
                 if (y == 0) & (path.path_type == PathType::Path) & start.is_none() {
-                    start = Some(Vec2D {x, y});
+                    start = Some(coord);
                     path.visited = true;
                 }
-                paths.insert((x,y), path);
+                paths.insert(coord, path);
             },
         }
     }
-    (start.unwrap(), line_width - 1, max_y + 1, paths)
+    (start.unwrap(), i64::try_from(line_width - 1).unwrap(),
+        i64::try_from(max_y + 1).unwrap(),
+        paths)
 }
 
 fn read_contents(cont: &str, part2: bool) -> i64 {
@@ -241,9 +235,9 @@ fn read_contents(cont: &str, part2: bool) -> i64 {
     let mut paths: Vec<PathHead> = Vec::new();
     let mut intersections: HashMap<Vec2D, Intersection> = HashMap::new();
     let first_intersection = Intersection::new();
-    intersections.insert(start.clone(), first_intersection);
+    intersections.insert(start, first_intersection);
     paths.push(PathHead::new(
-        start.clone(),
+        start,
         Direction::South));
     let mut connections: Vec<(Vec2D, Vec2D, i64)> = Vec::new();
     let mut target: Option<Vec2D> = None;
@@ -253,62 +247,48 @@ fn read_contents(cont: &str, part2: bool) -> i64 {
             Some(v) => v,
         };
         loop {
-            //println!("\nHeading {}", p.direction);
-            match blocks.get_mut(&(p.position.x,p.position.y)) {
+            match blocks.get_mut(&p.position) {
                 Some(b) => {
                     b.visited = true;
                 }
                 None => panic!(""),
             }
             let mut new_paths: Vec<(i64,i64, Direction)> = Vec::new();
-            let mut cons = 0;
+            let mut new_connections = 0;
             for direction in Direction::iter() {
-                //println!("Trying {}", direction);
                 if direction == p.direction.opposite() {
-                    //println!("Cant U turn to {}", direction);
                     continue;
                 }
                 let (dx, dy) = direction.get_dx();
                 let x = dx + p.position.x;
                 let y = dy + p.position.y;
                 let new_pos = Vec2D {x,y};
-                match blocks.get_mut(&(x,y)) {
+                match blocks.get_mut(&new_pos) {
                     None => {
-                        //println!("Cant go {}, out of field", direction);
                         continue;
                     }
                     Some(b) if b.visited => {
-                        cons += 1;
-                        connections.push((p.intersection.clone(), new_pos.clone(), p.distance + 1));
-                        match intersections.get(&new_pos) {
-                            None => {
-                                //println!("Already visited, add new intersection {}, {}", x,y);
-                                intersections.insert(new_pos.clone(), Intersection::new());
-                            }
-                            Some(_) => {
-                                //println!("Already visited, increment intersection");
-                            },
+                        new_connections += 1;
+                        connections.push((p.intersection, new_pos, p.distance + 1));
+                        if intersections.get(&new_pos).is_none() {
+                            intersections.insert(new_pos, Intersection::new());
                         }
                     },
                     Some(b) => {
                         match b.path_type {
                             PathType::Forest => {
-                                //println!("Cant go {}, Forest", direction);
                                 continue;
                             }
                             PathType::Slope(dir) if dir == direction.opposite() => {
-                                //println!("Cant go {}, upslope", direction);
-                                cons += 1;
+                                new_connections += 1;
                                 continue;
                             }
                             _ => {
-                                //println!("New path {}", direction);
-                                cons += 1;
+                                new_connections += 1;
                                 if y == n_rows - 1 {
-                                    //println!("Found the end");
-                                    target = Some(new_pos.clone());
-                                    intersections.insert(new_pos.clone(), Intersection::new());
-                                    connections.push((p.intersection.clone(), new_pos.clone(), p.distance + 1));
+                                    target = Some(new_pos);
+                                    intersections.insert(new_pos, Intersection::new());
+                                    connections.push((p.intersection, new_pos, p.distance + 1));
                                 } else {
                                     new_paths.push((x,y, direction));
                                 }
@@ -317,35 +297,28 @@ fn read_contents(cont: &str, part2: bool) -> i64 {
                     }
                 }
             }
-            if cons > 1 {
-                connections.push((p.intersection.clone(), p.position.clone(), p.distance));
-                //println!("More than 1 path");
-                match intersections.get(&p.position) {
-                    None => {
-                        //println!("Intersection {},{} does not exist", p.position.x, p.position.y);
+            if new_connections > 1 {
+                connections.push((p.intersection, p.position, p.distance));
+                if intersections.get(&p.position).is_none() {
                         let tmp = Intersection::new();
                         intersections.insert(
-                            p.position.clone(),
+                            p.position,
                             tmp);
-                    },
-                    _ => (),
                 };
 
                 for (_x, _y, dir) in &new_paths {
                     let pos = Vec2D {x:p.position.x, y:p.position.y};
                     let mut new_head = PathHead::new(pos, *dir);
-                    new_head.mmove(dir);
+                    new_head.mmove(*dir);
                     paths.push(
                         new_head,
                     );
                 }
-                //println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
                 break;
             }
-            //println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
             match new_paths.first()  {
                 None => break,
-                Some((_,_,dir)) => p.mmove(dir),
+                Some((_,_,dir)) => p.mmove(*dir),
             }
         }
     }
@@ -360,34 +333,34 @@ fn read_contents(cont: &str, part2: bool) -> i64 {
 
     println!("{} intersections", intersections.len());
     println!("\n{}", print(&blocks, &intersections, n_rows, n_cols));
-    let first_path = vec![start.clone()];
-    let paths: Vec<(Vec<Vec2D>, i64)> = get_iteration(first_path,
+    let first_path = vec![start];
+    let paths: Vec<(Vec<Vec2D>, i64)> = get_iteration(&first_path,
         0,
         &target.unwrap(),
         &intersections);
     *paths.iter().map(|(_v,d)| d).max().unwrap()
 }
 
-fn get_iteration(current_path: Vec<Vec2D>,
+fn get_iteration(current_path: &[Vec2D],
     current_distance: i64,
     target: &Vec2D,
     intersections: &HashMap<Vec2D, Intersection>) -> Vec<(Vec<Vec2D>, i64)> {
 
     let current_pos = current_path.last().unwrap();
-    let current_int = intersections.get(&current_pos).unwrap();
+    let current_int = intersections.get(current_pos).unwrap();
     let mut new_paths: Vec<(Vec<Vec2D>, i64)> = Vec::new();
-    for (t, dist) in current_int.targets.iter() {
-        if current_path.contains(&t) {
+    for (t, dist) in &current_int.targets {
+        if current_path.contains(t) {
             continue;
         }
         let new_distance = current_distance + dist;
-        let mut new_path = current_path.clone();
-        new_path.push(t.clone());
+        let mut new_path = current_path.to_owned();
+        new_path.push(*t);
         if t == target {
             new_paths.push((new_path, new_distance));
             return new_paths;
         }
-        let complete_paths = get_iteration(new_path, new_distance, target, intersections);
+        let complete_paths = get_iteration(&new_path, new_distance, target, intersections);
         for complete_path in complete_paths {
             new_paths.push(complete_path);
         }
@@ -427,5 +400,4 @@ mod tests {
         assert_eq!(read_contents(&a, false), 94);
         assert_eq!(read_contents(&a, true), 154);
     }
-
 }
