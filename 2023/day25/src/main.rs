@@ -5,7 +5,6 @@ use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use ndarray::{Array2, Axis};
 use ndarray_linalg::Eig;
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 
 
 #[derive(Parser, Debug)]
@@ -128,6 +127,7 @@ fn read_contents(cont: &str) -> i64 {
 
 
 // 567606 is the answer
+#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation)]
 fn laplacian(nodes: &BTreeMap<String, Node>) -> i64{
     let n = nodes.len();
     let mut laplacian = Array2::<f64>::zeros((n, n));
@@ -156,7 +156,6 @@ fn laplacian(nodes: &BTreeMap<String, Node>) -> i64{
         tmp.values().filter(|v| **v > 0.0).count()
     ).unwrap();
     positive * (i64::try_from(n).unwrap() - positive)
-    
 }
 
 fn brute_force(mut nodes: BTreeMap<String, Node>, connections: &Vec<(String, String)>) -> i64{

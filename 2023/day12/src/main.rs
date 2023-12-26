@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::fs;
 use itertools::{Itertools, Position};
+use num_integer::binomial;
 
 extern crate rayon;
 
@@ -48,29 +49,46 @@ struct Field {
     marker_string: String,
 }
 
-fn get_counts(n: i64, counts: &Vec<i64>) -> Option<i64> {
-    let min_len: i64 = counts.iter().sum::<i64>() + counts.iter().count() as i64 - 1;
-    let extra_len = n - min_len;
-    if min_len == n {
-        return Some(1);
-    }
+
+fn get_counts(n: usize, counts: &Vec<usize>) -> Option<usize> {
+    let min_len: usize = counts.iter().sum::<usize>() + counts.iter().count() - 1;
     if min_len > n {
         return Some(0);
     }
+    if min_len == n {
+        return Some(1);
+    }
+    let extra_len = n - min_len;
     if counts.len() == 1 {
         let tmp = n - counts.last().unwrap() + 1;
         return Some(tmp);
     }
     // Works when extra len is 1
-    return match (extra_len, counts.len())  {
-        (1,_) => Some(extra_len * (1 + counts.len() as i64)),
+    match (extra_len, counts.len())  {
+        (1,_) => Some(extra_len * (1 + counts.len())),
         // 2 groups, this is solved
         (n,2) => Some((n+1) * (n + 2) / 2),
+        // Triangular numbers with N = extra_len + 1 
+        // Typical definition is n * n(+1) / 2
 
         // 3 groups, 
-        (2,3) => Some(12), // Still need a general formula
+        //(n,3) => {
+        //    Some(binomial(n+1 + 3 -1,3))
+        //    //Some(((n+1) * (n+2) * (n+3) /6))
+        //    // Tetrahedral numbers with N = extra_len + 1 
+        //    // Typical definition is n * n(+1) * (n+2) / 6
+        //},
+        //// 4 groups, 
+        //(n,4) => {
+        //    Some(binomial(n +1 + 4 -1,4))
+        //},
+        (n,k) => {
+            Some(binomial(n +k, k))
+        }
+
         //
-        _ => None,
+        //
+        (n, c) => panic!("{n} {c}"),
         //(n,3) => 12, // 
         //(2,4) => 10, // Not correct!
         
@@ -114,7 +132,7 @@ impl Field {
             match m.marker {
                 Marker::Unknown | Marker::Broken => Some(m.len),
                 Marker::Fixed => None,
-                _ => panic!("Panic"),
+                Marker::None => panic!("Panic"),
             }
         }).while_some().sum()
     }
@@ -125,21 +143,21 @@ impl Field {
             match m.marker {
                 Marker::Unknown => Some(m.len),
                 Marker::Fixed | Marker::Broken => None,
-                _ => panic!("Panic"),
+                Marker::None => panic!("Panic"),
             }
         }).while_some().sum()
     }
 
-    fn get_sections(&self) -> Vec<i64> {
+    fn get_sections(&self) -> Vec<usize> {
         self.secs.iter().filter_map(|m| {
             match m.marker {
-                Marker::Broken => Some(m.len as i64),
+                Marker::Broken => Some(m.len),
                 _ => None,
             }
         }).collect()
     }
 
-    fn get_options(&self) -> Vec<Vec<i64>> {
+    fn get_options(&self) -> Vec<Vec<usize>> {
         // Brute force method
         get_options(&self.marker_string)
     }
@@ -148,29 +166,27 @@ impl Field {
         self.markers.len()
     }
 
-    fn get_options_alt(&self, counts: &Vec<i64>) -> i64 {
-        if counts.len() == 0 {
+    fn get_options_alt(&self, counts: &Vec<usize>) -> usize {
+        if counts.is_empty() {
             if self.markers.iter().filter(|m| m == &&Marker::Broken).count() == 0 {
                 return 1;
-            } else {
-                return 0;
             }
+            return 0;
         }
-        if (self.secs.len() == 1) & false {
+        if (self.secs.len() == 1) {
             let sec = self.secs.last().unwrap();
             if sec.marker == Marker::Unknown {
-                match get_counts(sec.len as i64, &counts) {
-                    Some(v) => return v,
-                    None => (),
+                if let Some(v) = get_counts(sec.len, counts) {
+                    return v
                 }
             }
         }
-        let min_len: i64 = counts.iter().sum::<i64>() as i64 + counts.len() as i64 - 1;
-        if (self.len() as i64) < min_len {
+        let min_len = counts.iter().sum::<usize>() + counts.len() - 1;
+        if self.len() < min_len {
             return 0;
         }
-        let c1 = *counts.iter().next().unwrap() as usize;
-        let c_last = *counts.iter().last().unwrap() as usize;
+        let c1 = *counts.iter().next().unwrap();
+        let c_last = *counts.iter().last().unwrap();
         let n = self.len();
         if self.secs.len() > 1 {
             let last_sec = self.secs.iter().last().unwrap();
@@ -184,59 +200,48 @@ impl Field {
                         let sub_field = Field::new(self.marker_string.get(0..n-c_last-1).unwrap(), true);
                         let sub_counts = counts[0..counts.len()-1].to_vec();
                         return sub_field.get_options_alt(&sub_counts);
-                    } else {
-                        return 1;
                     }
+                    return 1;
                 },
                 Marker::Fixed =>{
-                    let l = last_sec.len as usize;
+                    let l = last_sec.len;
                     let sub_field = Field::new(self.marker_string.get(0..n-l).unwrap(), true);
-                    return sub_field.get_options_alt(&counts);
+                    return sub_field.get_options_alt(counts);
                 }
                 _ => (),
             }
         }
-        let first_sec = self.secs.iter().next().unwrap();
+        let first_sec = self.secs.first().unwrap();
         match first_sec.marker {
             Marker::Broken => {
                 let n = self.len();
-                if n < c1 {
-                    return 0;
-                }
-                if c1 > self.possible() {
-                    return 0;
-                }
-                if n > c1 {
-                    match self.markers.get(c1) {
-                        Some(Marker::Broken) => {
-                            return 0;
-                        },
-                        _ => (),
+                if (n < c1) | (c1 > self.possible()) {
+                    0
+                } else if n > c1 {
+                    if let Some(Marker::Broken) = self.markers.get(c1) { 0 }
+                    else {
+                        let sub_field = Field::new(self.marker_string.get(c1+1..n).unwrap(), true);
+                        let sub_counts = counts[1..counts.len()].to_vec();
+                        sub_field.get_options_alt(&sub_counts)
                     }
-                    let sub_field = Field::new(self.marker_string.get(c1+1..n).unwrap(), true);
-                    let sub_counts = counts[1..counts.len()].to_vec();
-                    return sub_field.get_options_alt(&sub_counts);
-                } else {
-                    return 1;
-                }
+                } else { 1 }
             }
             Marker::Fixed =>{
-                let l = first_sec.len as usize;
+                let l = first_sec.len;
                 let sub_field = Field::new(self.marker_string.get(l..n).unwrap(), true);
-                let tmp = sub_field.get_options_alt(&counts);
-                return tmp;
+                sub_field.get_options_alt(counts)
             }
             Marker::Unknown => {
-                let f1 = Field::new(&self.marker_string.replacen("?", "#", 1), true);
-                let f2 = Field::new(&self.marker_string.replacen("?", ".", 1), true);
-                return f1.get_options_alt(&counts) + f2.get_options_alt(&counts);
+                let f1 = Field::new(&self.marker_string.replacen('?', "#", 1), true);
+                let f2 = Field::new(&self.marker_string.replacen('?', ".", 1), true);
+                f1.get_options_alt(counts) + f2.get_options_alt(counts)
             },
-            _ => {panic!("HEY");},
+            Marker::None => {panic!("HEY");},
         }
     }
 }
 
-fn get_options(markers: &String) -> Vec<Vec<i64>> {
+fn get_options(markers: &str) -> Vec<Vec<usize>> {
     // Brute force solution
     let n: usize = markers.chars().map(|c| {
         match c {
@@ -246,11 +251,11 @@ fn get_options(markers: &String) -> Vec<Vec<i64>> {
     }).sum();
 
     if n == 0 {
-        let f = Field::new(&markers, true);
-        return vec![f.get_sections()];
+        let f = Field::new(markers, true);
+        vec![f.get_sections()]
     } else {
-        let marker1 = markers.replacen("?", "#", 1);
-        let marker2 = markers.replacen("?", ".", 1);
+        let marker1 = markers.replacen('?', "#", 1);
+        let marker2 = markers.replacen('?', ".", 1);
         let mut vec1 = get_options(&marker1);
         let mut vec2 = get_options(&marker2);
         vec1.append(&mut vec2);
@@ -263,28 +268,26 @@ fn main() {
 
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
-    // In part 1 we add 1 one row/column for each empty one.
-    // In other words multiply amount of empty space by 2
     //let res1 = read_contents(&contents, 1);
     //let res1 = read_contents_conc(&contents, 1);
     //println!("Part 1 answer is {}", res1);
 
     let res2 = read_contents_conc(&contents, 5);
-    println!("Part 2 answer is {}", res2);
+    println!("Part 2 answer is {res2}");
 }
 
 
 #[derive(Debug)]
 enum RetType {
     Type1(Field),
-    Type2(Vec<i64>),
+    Type2(Vec<usize>),
 }
 
-fn read_line(input: &str, repeat: usize) -> i64 {
-    if input.parse::<i64>().is_ok()  {
-        return input.parse::<i64>().unwrap();
+fn read_line(input: &str, repeat: usize) -> usize {
+    if input.parse::<usize>().is_ok()  {
+        return input.parse::<usize>().unwrap();
     }
 
     let (field, mut counts) = match input.split_whitespace().with_position().map(|(p,v)| {
@@ -293,7 +296,7 @@ fn read_line(input: &str, repeat: usize) -> i64 {
                 RetType::Type1(Field::new(&(0..repeat).map(|_| v).join("?"), true))
             },
             Position::Last => {
-                RetType::Type2(v.split(",").map(|m| {m.parse::<i64>().unwrap()}).collect())
+                RetType::Type2(v.split(',').map(|m| {m.parse::<usize>().unwrap()}).collect())
             }
             _ => panic!("Unknown position"),
         }
@@ -307,25 +310,22 @@ fn read_line(input: &str, repeat: usize) -> i64 {
         counts.append(&mut c.clone());
     }
     // let options = field.get_options();
-    // options.iter().filter(|m| { m == &&counts}).count() as i64
+    // options.iter().filter(|m| { m == &&counts}).count()
     field.get_options_alt(&counts)
 }
 
-fn read_contents_conc(cont: &str, repeat: usize) -> i64 {
-    cont.lines().enumerate().collect::<Vec<_>>().par_iter().map(|(i, l)| {
+fn read_contents_conc(cont: &str, repeat: usize) -> usize {
+    cont.lines().enumerate().collect::<Vec<_>>().par_iter().map(|(_i, l)| {
         println!("{}", &l);
-        let tmp = read_line(&l, repeat);
+        let tmp = read_line(l, repeat);
         println!("{} got {}", &l, tmp);
         tmp
     }).sum()
 }
 
-fn read_contents(cont: &str, repeat: usize) -> i64 {
+fn read_contents(cont: &str, repeat: usize) -> usize {
     cont.lines().enumerate().map(|(_, l)| {
-        //if i % 10 == 0 {
-            //println!("{}", i);
-        //}
-        read_line(&l, repeat)}
+        read_line(l, repeat)}
     ).sum()
 }
 
@@ -365,14 +365,17 @@ mod tests {
         assert_eq!(get_counts(6, &vec![1,1]).unwrap(), 10); // 2 extra space
         assert_eq!(get_counts(7, &vec![1,1]).unwrap(), 15); // 4 extra space
         // 1 for lefternmost, 2+1 for second, 1+2+3 for third position
-        assert_eq!(get_counts(7, &vec![1,1,1]).unwrap(), 12); // 2 extra space
-        //assert_eq!(get_counts(8, &vec![1,1,1]).unwrap(), 12); // 2 extra space
+        assert_eq!(get_counts(7, &vec![1,1,1]).unwrap(), 10); // 2 extra space
+        assert_eq!(get_counts(8, &vec![1,1,1]).unwrap(), 20); // 3 extra space
+        assert_eq!(get_counts(10, &vec![1,1,1,1]).unwrap(), 35); // 3 extra space
+        //
+        assert_eq!(40225345056, read_line("????????????? 1,4,1", 5));
         // 3 groups, 3 extra space => 9
         // First moves: 3 options
         // Second moves: 1, 2 or 3 options
         // Third moves: 1, 2 or 3 options
         //
-        // 1 + (1+2) + (1+2+3) = 12
+        // 1 + (1+2) + (1+2+3) = 10
         //  xx.x.x... no moves -> 1 option
         //
         //  xx.x..x.. 1 move -> Ng options (Ng = 3)
@@ -390,56 +393,56 @@ mod tests {
     #[test]
     fn field_empty() {
         let f = Field::new("......", true);
-        let counts: Vec<i64> = vec![];
+        let counts: Vec<usize> = vec![];
         assert_eq!(f.get_options_alt(&counts), 1);
     }
 //
     #[test]
     fn field_ready() {
         let f = Field::new("...###", true);
-        let counts: Vec<i64> = vec![3];
+        let counts: Vec<usize> = vec![3];
         assert_eq!(f.get_options_alt(&counts), 1);
     }
 
     #[test]
     fn field_simple() {
         let f = Field::new("...???", true);
-        let counts: Vec<i64> = vec![3];
+        let counts: Vec<usize> = vec![3];
         assert_eq!(f.get_options_alt(&counts), 1);
-        let counts: Vec<i64> = vec![1];
+        let counts: Vec<usize> = vec![1];
         assert_eq!(f.get_options_alt(&counts), 3);
     }
 
     #[test]
     fn field1() {
         let f = Field::new("??", true);
-        let counts: Vec<i64> = vec![1];
+        let counts: Vec<usize> = vec![1];
         assert_eq!(f.get_options_alt(&counts), 2);
     }
 
     #[test]
     fn field() {
         let f = Field::new("??..??", true);
-        let counts: Vec<i64> = vec![1,1];
+        let counts: Vec<usize> = vec![1,1];
         assert_eq!(f.get_options_alt(&counts), 4);
     }
 
     #[test]
     fn field2() {
         let f = Field::new("###????", true);
-        let counts: Vec<i64> = vec![3,2];
+        let counts: Vec<usize> = vec![3,2];
         assert_eq!(f.get_options_alt(&counts), 2);
 
         let f = Field::new("?###????", true);
-        let counts: Vec<i64> = vec![3,2];
+        let counts: Vec<usize> = vec![3,2];
         assert_eq!(f.get_options_alt(&counts), 2);
 
         let f = Field::new("?????", true);
-        let counts: Vec<i64> = vec![2,1];
+        let counts: Vec<usize> = vec![2,1];
         assert_eq!(f.get_options_alt(&counts), 3);
 
         let f = Field::new("?###??????", true);
-        let counts: Vec<i64> = vec![3,2,1];
+        let counts: Vec<usize> = vec![3,2,1];
         assert_eq!(f.get_options_alt(&counts), 3);
     }
 
@@ -1346,6 +1349,7 @@ mod tests {
         assert_eq!(56,read_line("?????????? 1,1,1", 1));
         assert_eq!(56,read_line("???????????? 2,2,1", 1));
         assert_eq!(56,read_line("????????????? 1,4,1", 1));
+        assert_eq!(40225345056, read_line("????????????? 1,4,1", 5));
         assert_eq!(56,read_line("????????????????? 2,2,6", 1));
         assert_eq!(58,read_line("?.??????.????? 1,1,1,3", 1));
         assert_eq!(58,read_line("????#?????.??????. 7,1,1", 1));
