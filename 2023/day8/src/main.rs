@@ -31,7 +31,7 @@ impl Move {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents, true);
     println!("Part 1 answer is {}", res);
@@ -47,12 +47,11 @@ fn read_contents(cont: &str, part1: bool) -> u64 {
     let mut lines = cont.lines();
     let moves: Vec<Move> = lines.next().unwrap().chars().map(Move::new).collect();
     for ln in lines {
-        match parse_line(&ln) {
+        match parse_line(ln) {
             None => {continue;},
             Some((key, left, right)) => {
-                left_list.insert(&key, left);
-                right_list.insert(&key, right);
-                //right_list.get_mut()[key] = right;
+                left_list.insert(key, left);
+                right_list.insert(key, right);
             }
         }
     }
@@ -69,15 +68,15 @@ fn read_contents(cont: &str, part1: bool) -> u64 {
             }
         }
     } else {
-        let starts: Vec<&str> = left_list.keys().filter(|m| { m.chars().last() == Some('A')}).map(|m| {*m}).collect();
+        let starts: Vec<&str> = left_list.keys().filter(|m| { m.ends_with('A')}).copied().collect();
 
-        let ends: Vec<&str> = left_list.keys().filter(|m| { m.chars().last() == Some('Z')}).map(|m| {*m}).collect();
+        let ends: Vec<&str> = left_list.keys().filter(|m| { m.ends_with('Z')}).copied().collect();
         let mut targets: HashMap::<&str, &str> = HashMap::new();
         let mut counts: HashMap::<&str, u64> = HashMap::new();
         for s in &starts {
             let mut val = *s;
             let mut j: u64 = 0;
-            while val.chars().last() != Some('Z') {
+            while val.ends_with('Z') {
                 let m = &moves[(j as usize) % n];
                 j += 1;
                 val = match m {
@@ -85,13 +84,13 @@ fn read_contents(cont: &str, part1: bool) -> u64 {
                     Move::Right => right_list[val],
                 }
             }
-            targets.insert(&s, &val);
-            counts.insert(&s, j);
+            targets.insert(s, val);
+            counts.insert(s, j);
         }
         for s in ends {
             let mut val = s;
             let mut j: u64 = 0;
-            while (j == 0) | (val.chars().last() != Some('Z')) {
+            while (j == 0) | (!val.ends_with('Z')) {
                 let m = &moves[(j as usize) % n];
                 j += 1;
                 val = match m {
@@ -104,8 +103,8 @@ fn read_contents(cont: &str, part1: bool) -> u64 {
             if j % (n as u64) != 0 {
                 panic!("Cycle length must be a multiple of the move cycle");
             }
-            targets.insert(&s, &val);
-            counts.insert(&s, j);
+            targets.insert(s, val);
+            counts.insert(s, j);
         }
 
         let mut new_counts: HashMap::<&str, u64> = HashMap::new();
@@ -126,7 +125,7 @@ fn read_contents(cont: &str, part1: bool) -> u64 {
         i =  new_counts.values().map(|m| { m / (n as u64)}).product();
         // 293 by itself is a prime number, so to find a common multiple we need to add 293 as a
         // factor
-        i = i * (n as u64);
+        i *= n as u64;
     }
     i
 }
@@ -134,10 +133,7 @@ fn read_contents(cont: &str, part1: bool) -> u64 {
 fn parse_line(input: &str)-> Option<(&str, &str, &str)>{
     let re = Regex::new(r"([0-9A-Z]+) = \(([0-9A-Z]+), ([0-9A-Z]+)\)").unwrap();
     let Some(res) = re.captures(input) else {return None; };
-    let x: Vec<&str> = res.iter().skip(1).filter_map(|m| match m {
-        Some(val) => Some(val.as_str()),
-        None => None,
-    }).collect();
+    let x: Vec<&str> = res.iter().skip(1).filter_map(|m| m.map(|val| val.as_str())).collect();
     assert!(x.len() >= 2);
     Some((x[0], x[1], x[2]))
 }

@@ -16,7 +16,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -52,7 +52,7 @@ impl Component {
 
 #[derive(Clone,Debug, Copy, PartialEq, Eq, Hash)]
 enum Factor {
-    CoolFactor,
+    Cool,
     Musicality,
     Aero,
     Shininess,
@@ -79,7 +79,7 @@ impl Rule {
                 let Some(res) = re.captures(v) else { panic!("Could not parse input");};
                 let factor = match &res[1] {
                     "m" => Factor::Musicality,
-                    "x" => Factor::CoolFactor,
+                    "x" => Factor::Cool,
                     "a" => Factor::Aero,
                     "s" => Factor::Shininess,
                     v => panic!("Unknown factor {}", v),
@@ -96,7 +96,7 @@ impl Rule {
                     v => Target::Goto(v.to_string()),
                 };
 
-                Rule {min_val: min_val, max_val: max_val, factor: Some(factor), target: target}
+                Rule {min_val, max_val, factor: Some(factor), target}
             }
         }
     }
@@ -106,7 +106,7 @@ impl Rule {
             None => {
                 return Some(&self.target);
             },
-            Some(Factor::CoolFactor) => component.cool_factor,
+            Some(Factor::Cool) => component.cool_factor,
             Some(Factor::Musicality) => component.musicality,
             Some(Factor::Aero) => component.aero,
             Some(Factor::Shininess) => component.shininess,
@@ -114,14 +114,14 @@ impl Rule {
 
         match (self.min_val, self.max_val) {
             (Some(v), None) => if val > v {
-                return Some(&self.target)
+                Some(&self.target)
             } else {
-                return None
+                None
             }
             (None, Some(v)) => if val < v {
-                return Some(&self.target)
+                Some(&self.target)
             } else {
-                return None
+                None
             }
             _ => {panic!("Got something");},
         }
@@ -141,7 +141,7 @@ impl fmt::Display for Target {
         match self {
             Target::Accept => write!(f, "Accept"),
             Target::Reject => write!(f, "Reject"),
-            Target::Goto(s) => write!(f, "{}", format!("Goto {s}")),
+            Target::Goto(s) => write!(f, "Goto {s}"),
         }
     }
 }
@@ -185,10 +185,10 @@ struct PossibilitySpace {
 impl PossibilitySpace {
     fn new(cool_factor: ValRange, musicality: ValRange, aero: ValRange, shininess: ValRange) -> PossibilitySpace {
         PossibilitySpace {
-            cool_factor: cool_factor,
-            musicality: musicality,
-            aero: aero,
-            shininess: shininess,
+            cool_factor,
+            musicality,
+            aero,
+            shininess,
         }
     }
 
@@ -201,7 +201,7 @@ impl PossibilitySpace {
         let mut first_split = self.clone();
         let mut second_split = self.clone();
         match factor {
-            Factor::CoolFactor => {
+            Factor::Cool => {
                 let (a,b) = self.cool_factor.split(split);
                 first_split.cool_factor = a;
                 if b.len() <= 0 {
@@ -243,8 +243,8 @@ impl WorkFlow {
         let re = Regex::new(r"(\w*)\{(.*)\}").unwrap();
         let Some(res) = re.captures(input) else { panic!("Could not parse input");};
         let name = res[1].to_string();
-        let rules: Vec<Rule> = res[2].split(",").map(|s| {Rule::new(s)}).collect();
-        WorkFlow {name: name, rules: rules}
+        let rules: Vec<Rule> = res[2].split(',').map(|s| {Rule::new(s)}).collect();
+        WorkFlow {name, rules}
     }
 
     fn part2(&self, start_space: PossibilitySpace, workflows: &HashMap<String, WorkFlow>) -> i64 {
@@ -329,7 +329,7 @@ impl WorkFlow {
         let mut rules_iter = self.rules.iter();
         let mut rule = rules_iter.next().unwrap();
         loop {
-            match rule.check(&component) {
+            match rule.check(component) {
                 None => { // Component did not pass the test
                     rule = rules_iter.next().unwrap() ;
                 }, // Passed the test, need to figure out, what next
@@ -359,17 +359,17 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let mut components: Vec<Component> = Vec::new();
     let mut workflows: HashMap<String,WorkFlow> = HashMap::new();
     for ln in cont.lines() {
-        if ln.starts_with("{") {
+        if ln.starts_with('{') {
             components.push(Component::new(ln));
         }
-        else if ln.len() > 0 {
+        else if !ln.is_empty() {
             let w = WorkFlow::new(ln);
             workflows.insert(w.name.clone(), w);
         }
     }
     
     let res1 = components.iter().map(|c| {
-        get_score(&c, &workflows)
+        get_score(c, &workflows)
     }).sum();
     let res2 = part2(&workflows);
     (res1, res2)

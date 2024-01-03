@@ -55,8 +55,8 @@ impl Direction {
         // East is the default direction
         match self {
             Direction::East => (x, y, direction),
-            Direction::West => (-1 * x, -1 * y, direction.opposite()),
-            Direction::North => (-1 * y, -1 * x, direction.ccw()),
+            Direction::West => (-x, -y, direction.opposite()),
+            Direction::North => (-y, -x, direction.ccw()),
             Direction::South => (y, x, direction.cw()),
         }
     }
@@ -74,7 +74,7 @@ struct PathHead {
 
 impl PathHead {
     fn new(x:i64, y:i64, price: i64, direction: Direction) -> PathHead {
-        PathHead {x: x, y:y, price: price, direction: direction, history: vec![(x,y,direction.clone())]}
+        PathHead {x, y, price, direction, history: vec![(x,y,direction)]}
     }
 }
 
@@ -93,6 +93,7 @@ struct City {
 }
 
 
+#[allow(dead_code)]
 impl City {
     fn new(cont: &str) -> City {
         let line_width = cont.lines().next().expect("Should be at least 1 line").len() as i64 + 1;
@@ -116,7 +117,7 @@ impl City {
                 },
             }
         }
-        City {blocks: blocks, n_cols: line_width - 1, n_rows: max_y + 1, solved_history: None}
+        City {blocks, n_cols: line_width - 1, n_rows: max_y + 1, solved_history: None}
     }
 
     fn print(&self) -> String {
@@ -140,8 +141,8 @@ impl City {
         let west = PathHead::new(start_x, start_y, 0, Direction::East);
         let south = PathHead::new(start_x, start_y, 0, Direction::South);
         let h  = taxicab(start_x, target_x, start_y, target_y);
-        already_found.insert((west.x, west.y, west.direction.clone()), 0);
-        already_found.insert((south.x, south.y, south.direction.clone()), 0);
+        already_found.insert((west.x, west.y, west.direction), 0);
+        already_found.insert((south.x, south.y, south.direction), 0);
         let _ = &paths.push(west, h);
         let _ = &paths.push(south, h);
 
@@ -189,12 +190,12 @@ impl City {
                 };
 
                 let h  = taxicab(new_x, target_x, new_y, target_y);
-                let newhead = PathHead::new(new_x, new_y,newprice, dir.clone());
-                match already_found.get(&(new_x, new_y, dir.clone())) {
+                let newhead = PathHead::new(new_x, new_y,newprice, dir);
+                match already_found.get(&(new_x, new_y, dir)) {
                     Some(v) if v < &newprice => (),
                     _ => {
-                        paths.push(newhead, -1 * (newprice + h));
-                        already_found.insert((new_x, new_y, dir.clone()), newprice);
+                        paths.push(newhead, -(newprice + h));
+                        already_found.insert((new_x, new_y, dir), newprice);
                     },
                 }
             }
@@ -239,7 +240,7 @@ fn print(blocks: &HashMap<(i64,i64), i64>, n_rows: i64, n_cols: i64, history: &O
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
     // 0 cycles means just one tilt to north (part1)

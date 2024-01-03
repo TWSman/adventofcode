@@ -15,7 +15,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -64,12 +64,12 @@ impl Hand {
 
         let mut hand_map: BTreeMap<u32, u32> = BTreeMap::new();
         for c in &cc {
-            match hand_map.get(&c) {
+            match hand_map.get(c) {
                 Some(count) => {hand_map.insert(*c, count+1);}
                 None =>{hand_map.insert(*c, 1);}
             }
         }
-        let mut count_b: Vec<&u32> = hand_map.iter().map(|(_,v)| v).collect::<Vec<&u32>>();
+        let mut count_b: Vec<&u32> = hand_map.values().collect::<Vec<&u32>>();
         count_b.sort();
         let hand_type: i32 = match count_b.len() {
             5 => HandType::HIGHCARD, // All must be 1
@@ -88,7 +88,7 @@ impl Hand {
             1 => HandType::FIVEOFAKIND,
             _ => panic!("Should not happen"),
         };
-        Hand {hand: cc, hand_type: hand_type, bid}
+        Hand {hand: cc, hand_type, bid}
     }
     fn new2(input: &str) -> Hand {
         let split: Vec<&str> = input.split_whitespace().collect();
@@ -108,14 +108,14 @@ impl Hand {
 
         let mut hand_map: BTreeMap<u32, u32> = BTreeMap::new();
         for c in &cc {
-            match hand_map.get(&c) {
+            match hand_map.get(c) {
                 Some(count) => {hand_map.insert(*c, count+1);}
                 None =>{hand_map.insert(*c, 1);}
             }
         }
         let mut count_b: Vec<&u32> = hand_map.iter().filter(|(k,_)| {**k != 0}).map(|(_k,v)| v).collect::<Vec<&u32>>();
         count_b.sort();
-        let joker_count: u32 = *hand_map.get(&0).unwrap_or_else(|| &0);
+        let joker_count: u32 = *hand_map.get(&0).unwrap_or(&0);
         dbg!(&input);
         dbg!(joker_count);
         let hand_type: i32 = match (joker_count, count_b.len()) {
@@ -143,7 +143,7 @@ impl Hand {
             _ => panic!("Should not happen"),
         };
         Hand {hand: cc,
-            hand_type: hand_type,
+            hand_type,
             bid}
     }
 
@@ -168,8 +168,8 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let mut hand_list1: Vec<Hand> = vec![];
     let mut hand_list2: Vec<Hand> = vec![];
     for ln in cont.lines() {
-        let h1 = Hand::new1(&ln);
-        let h2 = Hand::new2(&ln);
+        let h1 = Hand::new1(ln);
+        let h2 = Hand::new2(ln);
         hand_list1.push(h1);
         hand_list2.push(h2);
     }

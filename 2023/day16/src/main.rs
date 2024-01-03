@@ -5,7 +5,6 @@ use std::cmp::max;
 use itertools::Itertools;
 use itertools::iproduct;
 use strum_macros::EnumIter;
-use strum::IntoEnumIterator;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -43,7 +42,7 @@ impl Location {
                 panic!("Unknown character");
             },
         };
-        Location {marker: marker, directions: Vec::new()}
+        Location {marker, directions: Vec::new()}
     }
 
     fn push(&mut self, dir: Direction) {
@@ -78,7 +77,7 @@ impl Direction {
     }
 
     // / 
-    fn get_plus(&self, x: i64, y: i64) -> Direction {
+    fn get_plus(&self) -> Direction {
         match self {
             Direction::North => Direction::East,
             Direction::South => Direction::West,
@@ -86,7 +85,7 @@ impl Direction {
             Direction::West =>  Direction::South,
         }
     }
-    fn get_minus(&self, x: i64, y: i64) -> Direction {
+    fn get_minus(&self) -> Direction {
         match self {
             Direction::North => Direction::West,
             Direction::South => Direction::East,
@@ -129,7 +128,7 @@ impl Game {
 
     fn get_energized(&self) -> i64 {
         self.markers.iter().filter(|(_,v)| {
-            v.directions.len() > 0
+            !v.directions.is_empty()
         }).count() as i64
     }
 }
@@ -202,14 +201,13 @@ fn propagate(map: &mut BTreeMap<(i64,i64), Location>, mut direction: Direction, 
                         (x,y) = direction.get_dx(x,y);
                     },
                     (MarkerType::MirrorPlus, _) => {
-                        direction = direction.get_plus(x,y);
+                        direction = direction.get_plus();
                         (x,y) = direction.get_dx(x,y);
                     }
                     (MarkerType::MirrorMinus, _) => {
-                        direction = direction.get_minus(x,y);
+                        direction = direction.get_minus();
                         (x,y) = direction.get_dx(x,y);
                     }
-                    _ => panic!("Stuff"),
                 }
             },
         }
@@ -219,7 +217,7 @@ fn propagate(map: &mut BTreeMap<(i64,i64), Location>, mut direction: Direction, 
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
     // 0 cycles means just one tilt to north (part1)

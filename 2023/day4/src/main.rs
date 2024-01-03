@@ -15,7 +15,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -24,8 +24,8 @@ fn main() {
 
 
 fn read_line(ln: &str) -> (i32, i32) {
-    let (_a,b) = ln.split_once(":").unwrap();
-    let (c, d)= b.split_once("|").unwrap();
+    let (_a,b) = ln.split_once(':').unwrap();
+    let (c, d)= b.split_once('|').unwrap();
     let wins: HashSet<&str> = HashSet::from_iter(
         c.split_whitespace()
     );

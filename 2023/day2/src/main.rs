@@ -13,7 +13,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -21,14 +21,14 @@ fn main() {
 }
 
 fn read_line(ln: &str) -> i32 {
-    let mut counts = HashMap::from([
+    let counts = HashMap::from([
     ("red", 12),
     ("green", 13),
     ("blue", 14),
     ]);
 
     let re1 = Regex::new("Game ([0-9]*)").unwrap();
-    let Some(res) = re1.captures(&ln) else { return 0; };
+    let Some(res) = re1.captures(ln) else { return 0; };
     let id = res[1].parse::<i32>().unwrap();
 
     let re = Regex::new(r"([0-9]*) (blue|red|green)").unwrap();

@@ -3,7 +3,7 @@ extern crate num_derive;
 use clap::Parser;
 use std::fs;
 use std::fmt;
-use std::cmp::{max, min};
+use std::cmp::max;
 use std::collections::BTreeMap;
 use indexmap::IndexMap;
 use nom::{
@@ -27,7 +27,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -97,7 +97,7 @@ struct Dig {
 
 impl Dig {
     fn new(direction: Direction, length: i64) -> Dig {
-        Dig {direction: direction, length: length}
+        Dig {direction, length}
     }
 }
 
@@ -128,7 +128,7 @@ impl DigLineVertical {
             Direction::South => (start_y - dig.length, start_y),
             _ => panic!("Should not happen"),
         };
-        DigLineVertical{ direction: dig.direction, max_y: max_y, min_y: min_y, x: start_x}
+        DigLineVertical{ direction: dig.direction, max_y, min_y, x: start_x}
     }
 }
 
@@ -139,7 +139,7 @@ impl DigLineHorizontal {
             Direction::West => (start_x - dig.length, start_x),
             _ => panic!("Should not happen"),
         };
-        DigLineHorizontal{ max_x: max_x, min_x: min_x, y: start_y}
+        DigLineHorizontal{ max_x, min_x, y: start_y}
     }
 
     fn area(&self) -> i64 {
@@ -162,7 +162,7 @@ fn from_hex64(input: &str) -> Result<u64, std::num::ParseIntError> {
 }
 
 fn is_hex_digit(c: char) -> bool {
-    c.is_digit(16)
+    c.is_ascii_hexdigit()
 }
 
 
@@ -219,7 +219,7 @@ fn analyze_digs(digs: Vec<&Dig>, verbose: bool) -> i64 {
         }
         x += d.length * dx;
         y += d.length * dy;
-        prev_direction = dir.clone();
+        prev_direction = dir;
 
     }
 
@@ -263,17 +263,13 @@ fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizon
             }
         }).collect();
 
-        let horizontals: Vec<&DigLineHorizontal> = diglines_horizontal.iter().filter_map(|d| {
-            if d.y == row_id {
-                Some(d)
-            } else {
-                None
-            }
+        let horizontals: Vec<&DigLineHorizontal> = diglines_horizontal.iter().filter(|d| {
+            d.y == row_id
         }).collect();
 
 
         // As long as there are no horizontal sections we can jump forward to the next horizontal
-        let common_length = if horizontals.len() == 0 {
+        let common_length = if horizontals.is_empty() {
             let mut common_max: i64 = max_y;
             match diglines_horizontal.iter().filter_map(|h| {
                 if h.y > row_id {
@@ -313,28 +309,25 @@ fn area3(diglines: Vec<DigLineVertical>, diglines_horizontal: Vec<DigLineHorizon
             }
             match dir {
                 Direction::North => {
-                    inside = 1 * multi;
+                    inside = multi;
                 }
                 Direction::South => {
-                    inside = -1 * multi;
+                    inside = -multi;
                 }
                 _ => (),
             }
             prev_x = x;
         }
         summed_area += (a * common_length) as i128;
-        if common_length > 1 {
-            row_id += common_length;
-        } else {
-            row_id += common_length;
-        }
+        row_id += common_length;
         if verbose {
             println!("Row: {}, horizontals: {},  Area: {}", row_id, horizontals.len(), summed_area);
         }
     };
-    return summed_area;
+    summed_area
 }
 
+#[allow(dead_code)]
 fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
     turn_count: i64,
     max_y: i64,
@@ -361,10 +354,10 @@ fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
             }
             match dir {
                 Direction::North => {
-                    inside = 1 * multi;
+                    inside = multi;
                 }
                 Direction::South => {
-                    inside = -1 * multi;
+                    inside = -multi;
                 }
                 _ => (),
             }
@@ -375,6 +368,7 @@ fn area2(rows: BTreeMap<i64, Vec<(i64, Direction)>>,
     }).sum()
 }
 
+#[allow(dead_code)]
 fn area(coords_with_direction: IndexMap<(i64, i64), Direction>, turn_count: i64) -> i64{
     // If turn count is positive, our loop was CCW, otherwise CW
     // For CCW loops need to move in -x direction, whenever direction is North
@@ -405,7 +399,7 @@ fn area(coords_with_direction: IndexMap<(i64, i64), Direction>, turn_count: i64)
             },
             _ => 0,
         };
-        prev_dir = Some(dir.clone());
+        prev_dir = Some(*dir);
         i
     }).sum::<i64>();
     // println!("\n{}", output);

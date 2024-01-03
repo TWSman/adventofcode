@@ -17,7 +17,7 @@ struct Galaxy {
 }
 
 impl Galaxy {
-    fn mmove(&mut self, dx: &Vec<i64>, dy: &Vec<i64>) {
+    fn mmove(&mut self, dx: &[i64], dy: &[i64]) {
         self.x += dx.get(self.x as usize).unwrap();
         self.y += dy.get(self.y as usize).unwrap();
     }
@@ -30,7 +30,7 @@ impl Galaxy {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     // In part 1 we add 1 one row/column for each empty one.
     // In other words multiply amount of empty space by 2
@@ -58,7 +58,7 @@ fn read_contents(cont: &str, expansion: i64) -> i64 {
                 let y = (i as i64) / line_width;
                 cols.insert(x);
                 rows.insert(y);
-                Some(Galaxy {x: x, y: y})
+                Some(Galaxy {x, y})
             },
             _ => { // Insert the Node but don't return
                 panic!("Unknown character");
@@ -91,7 +91,7 @@ fn read_contents(cont: &str, expansion: i64) -> i64 {
         g.mmove(&col_add, &row_add);
     }
     let distance_sum: i64 = galaxies.iter().map(|g| {
-        galaxies.iter().map(|o| {g.get_dist(&o)}).sum::<i64>()
+        galaxies.iter().map(|o| {g.get_dist(o)}).sum::<i64>()
     }).sum::<i64>();
 
     distance_sum / 2

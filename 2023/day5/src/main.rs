@@ -1,7 +1,5 @@
 use clap::Parser;
 use std::fs;
-use std::collections::HashMap;
-// use regex::Regex;
 
 
 #[derive(Parser, Debug)]
@@ -15,7 +13,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -67,7 +65,7 @@ fn read_contents(cont: &str) -> (usize, usize) {
             _ => {
                 dbg!(&ln);
                 let splits: Vec<usize> = ln.split_whitespace().map(|m| m.parse::<usize>().unwrap()).collect();
-                if splits.len() == 0 {
+                if splits.is_empty() {
                     continue;
                 }
                 assert_eq!(splits.len(), 3);
@@ -149,7 +147,7 @@ fn read_contents(cont: &str) -> (usize, usize) {
 
     impl Mapping {
         fn new() -> Mapping {
-            return Mapping {ranges: vec![]}
+            Mapping {ranges: vec![]}
         }
 
         fn map(&self, ind: usize) -> usize {

@@ -14,7 +14,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
     let res1 = read_contents(&contents);
@@ -60,11 +60,7 @@ impl Line {
     fn almost_equal(&self, other: &Line) -> bool {
         assert_eq!(self.len(), other.len());
         let diffs = zip(self.markers.iter(), other.markers.iter()).filter(|(x,y)| { x != y }).count();
-        if diffs == 1 {
-            true
-        } else {
-            false
-        }
+        diffs == 1
     }
 }
 
@@ -101,7 +97,7 @@ fn search(lines: &Vec<Line>) -> Option<i64> {
             None
         }
     }).collect();
-    if matching.len() == 0 {
+    if matching.is_empty() {
         return None;
     } 
     for i in matching {
@@ -112,7 +108,7 @@ fn search(lines: &Vec<Line>) -> Option<i64> {
             return Some(i as i64 + 1);
         }
     }
-    return None
+    None
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
@@ -251,23 +247,8 @@ mod tests {
 ..##..###
 #....#..#";
 
-        let c = "##..###.###..
-##.#.#..##..#
-..#.#...#.#.#
-######.#.####
-##..#.##....#
-##.##.#..#.#.
-#####....#.#.
-###.########.
-#######..#.##
-..####..##..#
-......#.###..
-......#.###..
-..####..#...#";
-
         assert_eq!(read_block(&a).1, 300);
         assert_eq!(read_block(&b).1, 100);
-        //assert_eq!(read_block(&c).0, 1);
 
     }
 

@@ -15,7 +15,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -36,9 +36,9 @@ fn read_line(input: &str) -> (i64, i64) {
         nums = nums.iter().tuple_windows().map(|(x,y)| { y-x}).collect();
     }
 
-    // The reverse when looping over lasts would not be necessary since the sum will be the same anyway
-    // When looping over the firsts, the iterator must be reversed, otherwise wrong answer
-    (lasts.iter().rev().fold(0, |sum, l| sum + l),
+    // When looping over the firsts, the iterator must be reversed, and sum is replaced with
+    // alternating sum
+    (lasts.iter().sum(),
         firsts.iter().rev().fold(0, |sum, l| l - sum)
     )
 }
@@ -48,7 +48,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let mut res1: i64 = 0;
     let mut res2: i64 = 0;
     for ln in cont.lines() {
-        let res = read_line(&ln);
+        let res = read_line(ln);
         res1 += res.0;
         res2 += res.1;
     }

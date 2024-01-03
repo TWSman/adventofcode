@@ -19,7 +19,7 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
     let res = read_contents(&contents);
@@ -56,7 +56,7 @@ impl PartialOrd for Vec3D {
         if self.z > other.z {
             return Some(Ordering::Greater);
         }
-        return Some(Ordering::Equal);
+        Some(Ordering::Equal)
     }
 }
 
@@ -106,7 +106,7 @@ impl Block {
             y: res[5].parse::<i64>().unwrap(),
             z: res[6].parse::<i64>().unwrap(),
         };
-        let block = if start > end {
+        if start > end {
             Block {
                 start: end,
                 end: start,
@@ -116,21 +116,18 @@ impl Block {
             }
         } else {
             Block {
-                start: start,
-                end: end,
+                start,
+                end,
                 name: "block".to_string(),
                 held_by: HashSet::new(),
                 holds: HashSet::new(),
             }
-        };
-        block
+        }
     }
 
     fn overlaps(&self, other: &Block) -> bool {
-        if (self.start.x <= other.end.x) & (self.end.x >= other.start.x) {
-            if (self.start.y <= other.end.y) & (self.end.y >= other.start.y) {
-                return true
-            }
+        if (self.start.x <= other.end.x) & (self.end.x >= other.start.x)  &(self.start.y <= other.end.y) & (self.end.y >= other.start.y) {
+            return true
         }
         if other.end.x < self.start.x {
             return false
@@ -144,7 +141,7 @@ impl Block {
         if other.start.y > self.end.y {
             return false
         }
-        return true
+        true
     }
 
     fn above(&self, other: &Block) -> bool {
@@ -164,12 +161,13 @@ fn read_contents(cont: &str) -> (i64, i64) {
 
     // Give names to blocks
     // Example used A-F. Thus gives names AAA-ZZZ
-    for i in 0..blocks.len() {
+    //for i in 0..blocks.len() {
+    for (i, block) in blocks.iter_mut().enumerate() {
         let (div, a) = (i / 26, i % 26);
         let (div, b) = (div / 26, div % 26);
         let (_div, c) = (div / 26, div % 26);
         let mtp = format!("{}{}{}", ASCII_UPPER[c], ASCII_UPPER[b], ASCII_UPPER[a]);
-        blocks[i].name = mtp;
+        block.name = mtp;
     }
     let n = blocks.len();
 
@@ -187,15 +185,15 @@ fn read_contents(cont: &str) -> (i64, i64) {
                 return None
             }
             let b_comp = &blocks[j];
-            let is_above = b.overlaps(&b_comp) & b.above(&b_comp);
+            let is_above = b.overlaps(b_comp) & b.above(b_comp);
             if is_above {
                 //println!("Block {} is above block {}", &b, &b_comp);
-                Some((b_comp.name.clone(), b_comp.end.z.clone()))
+                Some((b_comp.name.clone(), b_comp.end.z))
             } else {
                 None
             }
         }).collect::<Vec<_>>();
-        let max_z = hold_list.iter().map(|(_, z)| z.clone()).max().unwrap_or(0);
+        let max_z = hold_list.iter().map(|(_, z)| *z).max().unwrap_or(0);
         for (name, z) in &hold_list {
             if z == &max_z {
                 hold_relations.insert((name.to_string(), b.name.to_string()));
@@ -221,7 +219,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
     }
 
     let mut part1 = 0;
-    for (_name, block) in &block_map {
+    for block in block_map.values() {
         if block.holds.iter().filter(|b_name|{
             let b = block_map.get(&b_name.to_string()).unwrap();
             b.held_by.len() == 1
@@ -231,25 +229,19 @@ fn read_contents(cont: &str) -> (i64, i64) {
     }
 
     let mut drops = 0;
-    let mut i = 0;
     let n = block_map.len();
-    for name in block_map.keys() {
+    for (i, name) in block_map.keys().enumerate() {
         println!("{:04} / {:04}, Dropping {}", i+1,n,&name);
-        i += 1;
         let mut bmap = block_map.clone();
         let mut dropped_blocks: VecDeque<String> = VecDeque::new();
         dropped_blocks.push_back(name.to_string());
-        loop {
-            let dropped_name = match dropped_blocks.pop_front() {
-                Some(v) => v,
-                None => break,
-            };
+        while let Some(dropped_name) = dropped_blocks.pop_front() {
             let dropped_block = block_map.get(&dropped_name).unwrap();
             for above_name in &dropped_block.holds {
                 let above_block = bmap.get_mut(above_name).unwrap();
                 if above_block.held_by.contains(&dropped_name) {
                     above_block.held_by.remove(&dropped_name);
-                    if above_block.held_by.len() == 0{
+                    if above_block.held_by.is_empty() {
                         dropped_blocks.push_back(above_name.clone());
                         drops += 1;
                     }

@@ -32,7 +32,7 @@ fn second_degree(a: f64, b: f64, c: f64) -> (f64, f64) {
     let sol1 = 0.5 * (-b + f64::sqrt(discriminant)) / a;
     // In this task a is always negative, so sol1 should be smaller
     assert!(sol1 < sol2);
-    return (sol1, sol2);
+    (sol1, sol2)
 }
 
 fn analyze_race(r: &Race) -> i64 {
@@ -56,7 +56,7 @@ fn analyze_race(r: &Race) -> i64 {
     let (sol1, sol2) = second_degree(a, b, c);
     let n1 = sol1.ceil() as i64;
     let n2 = sol2.floor() as i64;
-    return (n2 - n1) + 1;
+    n2 - n1 + 1
 }
 
 fn read_contents(cont: &str) -> i64 {

@@ -14,7 +14,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -34,11 +34,10 @@ fn read_line(ln: &str) -> i32 {
         last = c;
     }
 
-    let s: String = vec![first, last].iter().collect();
-    match s.parse() {
-        Ok(val) => val,
-        Err(_) => 0 // This can happen if the line didn't include any numerical characters
-    }
+    let s: String = [first, last].iter().collect();
+
+    // Errors can happen if the line didn't include any numerical characters
+    s.parse().unwrap_or(0)
 }
 
 fn read_line2(ln: &str) -> i32 {
@@ -73,7 +72,7 @@ fn read_line2(ln: &str) -> i32 {
     }
 
     for r in re {
-        for c in r.find_iter(&ln) {
+        for c in r.find_iter(ln) {
             if c.start() < first_ind {
                 first = to_replace[c.as_str()];
                 first_ind = c.start();
@@ -84,11 +83,8 @@ fn read_line2(ln: &str) -> i32 {
             }
         }
     }
-    let s: String = vec![first, last].iter().collect();
-    match s.parse() {
-        Ok(val) => val,
-        Err(_) => 0
-    }
+    let s: String = [first, last].iter().collect();
+    s.parse().unwrap_or(0)
 }
 
 fn read_contents(cont: &str) -> (i32, i32) {

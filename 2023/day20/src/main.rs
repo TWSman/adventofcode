@@ -34,7 +34,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = part1(&contents, 1000);
     println!("Part 1 answer is {}", res);
@@ -96,8 +96,8 @@ fn lcm(vals: Vec<i64>) -> i64 {
                 i += 1;
             }
             if i > 0 {
-                if counts.contains_key(&p) {
-                    let t = counts.get(&p).unwrap();
+                if counts.contains_key(p) {
+                    let t = counts.get(p).unwrap();
                     counts.insert(*p, max(i, *t));
                 } else {
                     counts.insert(*p, i);
@@ -117,7 +117,7 @@ fn lcm(vals: Vec<i64>) -> i64 {
 fn part1(input: &str, max_presses: i64) -> i64 {
     let mut modules: BTreeMap<String, Module> = BTreeMap::new();
     let module_names: Vec<String> =  input.lines().map(|ln| {
-        let module = Module::new(&ln);
+        let module = Module::new(ln);
         let tmp = module.name.clone();
         modules.insert(module.name.clone(), module);
         tmp
@@ -133,8 +133,6 @@ fn part1(input: &str, max_presses: i64) -> i64 {
                 }
                 if let Some(target_module) = modules.get_mut(t) {
                     target_module.add_input(module_name.clone());
-                } else {
-                    ()
                 }
             }
         }
@@ -181,7 +179,7 @@ fn part1(input: &str, max_presses: i64) -> i64 {
 fn part2(input: &str) -> i64 {
     let mut modules: BTreeMap<String, Module> = BTreeMap::new();
     let module_names: Vec<String> =  input.lines().map(|ln| {
-        let module = Module::new(&ln);
+        let module = Module::new(ln);
         let tmp = module.name.clone();
         modules.insert(module.name.clone(), module);
         tmp
@@ -197,24 +195,19 @@ fn part2(input: &str) -> i64 {
                 }
                 if let Some(target_module) = modules.get_mut(t) {
                     target_module.add_input(module_name.clone());
-                } else {
-                    ()
                 }
             }
         }
     }
     let mut inputs_to_follow: BTreeMap<(String,String), (PulseType, Vec<i64>, i64)> = BTreeMap::new();
     for m in ["ks", "dn", "ms", "tc"].iter() {
-        match modules.get(&m.to_string()) {
-            Some(module) => {
-                for t in &module.inputs {
-                    inputs_to_follow.insert(
-                        (module.name.clone(), t.to_string()),
-                        (PulseType::Low, Vec::new(), -1)
-                    );
-                }
+        if let Some(module) = modules.get(&m.to_string()) {
+            for t in &module.inputs {
+                inputs_to_follow.insert(
+                    (module.name.clone(), t.to_string()),
+                    (PulseType::Low, Vec::new(), -1)
+                );
             }
-            None => (),
         }
     }
     let mut pulses: VecDeque<PulseReturn> = VecDeque::new();
@@ -230,7 +223,7 @@ fn part2(input: &str) -> i64 {
                     if (old_type == &PulseType::Low) & (mem == &PulseType::High) {
                         v.push(button_presses);
                     }
-                    *old_type = mem.clone();
+                    *old_type = *mem;
                     if (v.len() > 2048) & (c == &-1) {
                         for w in 1..=2048 {
                             let tmp_arr = &v.windows(w+1).map(|x| {x[w] - x[0]}).collect::<Vec<_>>();
@@ -269,6 +262,7 @@ fn part2(input: &str) -> i64 {
     }
 }
 
+#[allow(dead_code)]
 fn is_all_same3(arr: &[usize]) -> bool {
     arr.windows(2).all(|w| w[0] == w[1])
 }
@@ -358,15 +352,15 @@ impl Module{
             ModuleType::Broadcaster => "broadcaster",
             _ => &res[2],
         };
-        let targets: Vec<String> = res[3].split(",").map(|c| {
+        let targets: Vec<String> = res[3].split(',').map(|c| {
             c.trim().to_string()
         }).collect();
 
         Module {
             name: name.to_string(),
-            mtype: mtype,
+            mtype,
             state: mstate,
-            targets: targets,
+            targets,
             memory: BTreeMap::new(),
             inputs: Vec::new()
         }
@@ -374,11 +368,8 @@ impl Module{
 
     fn add_input(&mut self, input: String) {
         self.inputs.push(input.clone());
-        match &self.mtype {
-            ModuleType::Conjunction => {
-                self.memory.insert(input, PulseType::Low);
-            },
-            _ =>(),
+        if let ModuleType::Conjunction = &self.mtype {
+            self.memory.insert(input, PulseType::Low);
         }
     }
 
@@ -392,22 +383,22 @@ impl Module{
             // Flip-flop modules (prefix %) are either on or off; they are initially off.
             // If a flip-flop module receives a high pulse, it is ignored and nothing happens.
             (ModuleType::FlipFlop, _, PulseType::High) => {
-                return Vec::new();
+                Vec::new()
             }
             // However, if a flip-flop module receives a low pulse, it flips between on and off.
             // If it was off, it turns on and sends a high pulse.
             (ModuleType::FlipFlop, ModuleState::Off, PulseType::Low) => {
                 self.state = ModuleState::On;
-                return self.targets.iter().map(|m| {
+                self.targets.iter().map(|m| {
                     PulseReturn { from: self.name.clone(), to: m.clone(), ptype: PulseType::High}
-                }).collect();
+                }).collect()
             }
             // If it was on, it turns off and sends a low pulse.
             (ModuleType::FlipFlop, ModuleState::On, PulseType::Low) => {
                 self.state = ModuleState::Off;
-                return self.targets.iter().map(|m| {
+                self.targets.iter().map(|m| {
                     PulseReturn { from: self.name.clone(), to: m.clone(), ptype: PulseType::Low}
-                }).collect();
+                }).collect()
             }
 
             // Conjunction modules remember the type of the
@@ -422,9 +413,9 @@ impl Module{
                 } else {
                     PulseType::High 
                 };
-                return self.targets.iter().map(|m| {
+                self.targets.iter().map(|m| {
                     PulseReturn { from: self.name.clone(), to: m.clone(), ptype: return_type}
-                }).collect();
+                }).collect()
             }
             _ => panic!("Not possible"),
         }

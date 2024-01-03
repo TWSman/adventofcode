@@ -60,33 +60,25 @@ struct PathHead {
 
 impl PathHead {
     fn new(x:i64, y:i64) -> PathHead {
-        PathHead {x: x, y:y}
+        PathHead {x, y}
     }
 }
 
 
+#[allow(dead_code)]
 fn print(blocks: &BTreeMap<(i64,i64), Block>, _paths: &HashSet<PathHead>, n_rows: i64, n_cols: i64) -> String {
-    let mut str = (0..n_rows).map(|i_row| {
+    let str = (0..n_rows).map(|i_row| {
         let x = (0..n_cols).map(|i_col| {
             match blocks.get(&(i_col, i_row)) {
                 None => panic!("Could not find marker at {} {}", i_col, i_row),
                 Some(b) if b.block_type == BlockType::Rock => "#".to_string(),
                 Some(b) if b.block_type == BlockType::Start => "S".to_string(),
-                Some(b) if b.visited.len() > 0 => format!("{}", b.visited.len()),
+                Some(b) if !b.visited.is_empty() => format!("{}", b.visited.len()),
                 Some(_b) => ".".to_string(),
             }
         }).collect::<Vec<_>>().join("");
         x
     }).collect::<Vec<_>>().join("\n");
-    //for p in paths {
-        //let y = p.y.rem_euclid(n_rows);
-        //let x = p.x.rem_euclid(n_cols);
-        //if (x == n_cols) | (y == n_rows) {
-            //panic!();
-        //}
-        //let i = ((1+n_cols) * y + x) as usize;
-        //str.replace_range(i..(i+1), "O");
-    //}
     str
 }
 
@@ -94,14 +86,12 @@ fn print(blocks: &BTreeMap<(i64,i64), Block>, _paths: &HashSet<PathHead>, n_rows
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
-    // 0 cycles means just one tilt to north (part1)
     let res = part1(&contents, 64);
     println!("Part 1 answer is {}", res);
 
-                             //26_501_365
     let res = part2(&contents, 26_501_365);
     println!("Part 2 answer is {}", res);
 
@@ -133,7 +123,7 @@ struct Block {
 
 impl Block {
     fn new(block_type: BlockType) -> Block {
-        Block {block_type: block_type, visited: HashMap::new()}
+        Block {block_type, visited: HashMap::new()}
     }
 }
 
@@ -204,7 +194,6 @@ fn part2(cont: &str, steps: i64) -> i64 {
     let mut paths: HashSet<PathHead> = HashSet::new();
     paths.insert(PathHead::new(start_x, start_y));
     let mut path_cache: HashMap<Vec<i64>, (i64, i64)> = HashMap::new();
-    let mut increase: Vec<i64> = Vec::new();
     let mut visit_counts: Vec<i64> = Vec::new();
     let loop_size = 262;
     for i in 0..steps {
@@ -246,7 +235,7 @@ fn part2(cont: &str, steps: i64) -> i64 {
             None => {
                 path_cache.insert(cached_paths, (i, get_count(&blocks, steps % 2)));
             },
-            Some((_step, count)) => {
+            Some((_step, _count)) => {
                 if (steps - i)  % loop_size == 0 {
                     let new_count = get_count(&blocks, steps % 2);
                     visit_counts.push(new_count);
@@ -268,7 +257,7 @@ fn get_count(blocks: &BTreeMap<(i64,i64), Block>, parity: i64) -> i64 {
     assert!(parity < 2);
     assert!(parity > -1);
     let t = blocks.iter().map(|((x,y), b)| {
-        let tmp = b.visited.iter().filter(|((ix,iy), i_step)| {
+        let tmp = b.visited.iter().filter(|((ix,iy), _i_step)| {
             (x + y + ix.abs() + iy.abs()) % 2 == parity
         }).count() as i64;
         tmp

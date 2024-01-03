@@ -1,7 +1,6 @@
 use clap::Parser;
 use std::fs;
 use regex::Regex;
-use std::cmp;
 
 
 #[derive(Debug)]
@@ -61,7 +60,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -72,7 +71,7 @@ fn read_contents(input: &str) -> (i32, i64) {
     // Add +1 to include new line characters
     let line_width = input.lines().next().expect("Should be at least 1 line").len() as i32 + 1;
     let re = Regex::new("[0-9]+").unwrap();
-    let mut number_matches: Vec<Number> = re.captures_iter(&input).map(|res|
+    let mut number_matches: Vec<Number> = re.captures_iter(input).map(|res|
         {
             let m = res.get(0).unwrap();
             Number {
@@ -85,19 +84,17 @@ fn read_contents(input: &str) -> (i32, i64) {
     //dbg!(&number_matches[0]);
     let re = Regex::new("[^.0-9\\s]").unwrap();
     let mut gear_sum: i64 = 0;
-    for x in re.captures_iter(&input) {
+    for x in re.captures_iter(input) {
         let mut gear_product: i64 = 1;
         let mut founds: usize = 0;
         let i = x.get(0).unwrap().start() as i32;
         for m in &mut number_matches {
-            if m.is_match(i, line_width) {
-                if x.get(0).unwrap().as_str() == "*" {
+            if m.is_match(i, line_width) && x.get(0).unwrap().as_str() == "*" {
                     dbg!(gear_product);
                     dbg!(m.value);
                     gear_product *= m.value as i64;
                     founds += 1;
                 }
-            }
         }
         if founds == 2 {
             gear_sum += gear_product;

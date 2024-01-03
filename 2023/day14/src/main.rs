@@ -70,16 +70,13 @@ impl Game {
                 }
             }
         }
-        Game {rocks: rocks, already_found: HashMap::new(), n_cols: line_width - 1, n_rows: max_y + 1}
+        Game {rocks, already_found: HashMap::new(), n_cols: line_width - 1, n_rows: max_y + 1}
     }
 
     fn save(&mut self, i: i64) -> Option<i64> {
         let tmp = self.print();
-        match self.already_found.get(&tmp) {
-            Some(j) => {
-                return Some(*j)
-            },
-            None => (),
+        if let Some(j) = self.already_found.get(&tmp) {
+            return Some(*j)
         }
         self.already_found.insert(tmp, i);
         None
@@ -184,7 +181,7 @@ impl Game {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
 
     // 0 cycles means just one tilt to north (part1)

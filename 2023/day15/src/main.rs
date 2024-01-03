@@ -13,7 +13,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let mut contents = fs::read_to_string(&args.input)
+    let mut contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res1 = part1(&contents);
     println!("Part 1 answer is {}", res1);
@@ -42,6 +42,7 @@ struct Box {
     lens_list: IndexMap<String, i64>,
 }
 
+#[allow(dead_code)]
 impl Box {
     fn new(i: i64) -> Box {
         Box {number: i, lens_list: IndexMap::new()} 
@@ -72,7 +73,7 @@ struct Boxes {
 
 impl Boxes {
     fn new() -> Boxes {
-        Boxes {box_list: (0..256).map(|i| Box::new(i)).collect()}
+        Boxes {box_list: (0..256).map(Box::new).collect()}
     }
 
     fn get_box(&mut self, i: usize) -> &mut Box {
@@ -87,15 +88,15 @@ impl Boxes {
 }
 
 fn part1(cont: &str) -> u64 {
-    cont.split(",").map(|s| {
-        hash(&s)
+    cont.split(',').map(|s| {
+        hash(s)
     }).sum()
 }
 
 
 fn part2(cont: &str) -> i64 {
     let mut boxes = Boxes::new();
-    for s in cont.split(",") {
+    for s in cont.split(',') {
         let (label, f): (&str, i64) = 
         match s.chars().last().unwrap() {
             c if c.is_numeric() => {
@@ -104,7 +105,7 @@ fn part2(cont: &str) -> i64 {
             '-' => (&s[..s.len() - 1], -1),
             v => {panic!("Something unexpected {}", v);},
         };
-        let hash = hash(&label);
+        let hash = hash(label);
         let boks = boxes.get_box(hash as usize);
         if f == -1 {
             boks.delete(label.to_string());

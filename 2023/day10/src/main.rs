@@ -17,7 +17,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);
@@ -45,8 +45,8 @@ enum Direction {
 
 #[derive(Debug)]
 enum Turn {
-    CW,
-    CCW,
+    Cw,
+    Ccw,
     Straight,
 }
 
@@ -78,15 +78,15 @@ impl Node {
     fn get_direction(&self, dir: Direction) -> Option<(Direction, Turn)> {
         match (self, dir) {
             (Node::Vertical | Node::Horizontal, dir) => Some((dir, Turn::Straight)),
-            (Node::NorthEast, Direction::South) => Some((Direction::East,  Turn::CCW)),
-            (Node::NorthEast, Direction::West) =>  Some((Direction::North, Turn::CW )),
-            (Node::SouthEast, Direction::North) => Some((Direction::East,  Turn::CW )),
-            (Node::SouthEast, Direction::West) =>  Some((Direction::South, Turn::CCW)),
+            (Node::NorthEast, Direction::South) => Some((Direction::East,  Turn::Ccw)),
+            (Node::NorthEast, Direction::West) =>  Some((Direction::North, Turn::Cw )),
+            (Node::SouthEast, Direction::North) => Some((Direction::East,  Turn::Cw )),
+            (Node::SouthEast, Direction::West) =>  Some((Direction::South, Turn::Ccw)),
 
-            (Node::NorthWest, Direction::South) => Some((Direction::West,  Turn::CW )),
-            (Node::NorthWest, Direction::East) =>  Some((Direction::North, Turn::CCW)),
-            (Node::SouthWest, Direction::North) => Some((Direction::West,  Turn::CCW)),
-            (Node::SouthWest, Direction::East) =>  Some((Direction::South, Turn::CW )),
+            (Node::NorthWest, Direction::South) => Some((Direction::West,  Turn::Cw )),
+            (Node::NorthWest, Direction::East) =>  Some((Direction::North, Turn::Ccw)),
+            (Node::SouthWest, Direction::North) => Some((Direction::West,  Turn::Ccw)),
+            (Node::SouthWest, Direction::East) =>  Some((Direction::South, Turn::Cw )),
             (_, _) => None,
         }
     }
@@ -94,7 +94,7 @@ impl Node {
 
 
 fn repl_ind(input: &str, x: i64, y: i64, w: i64, c: &str) -> String {
-    let ind: usize = (-1 * y * w + x).try_into().unwrap();
+    let ind: usize = (-y * w + x).try_into().unwrap();
     let mut output = input.to_owned();
     output.replace_range(ind..(ind+1), c);
     output
@@ -110,11 +110,11 @@ fn read_contents(cont: &str) -> (i64, i64) {
             '.' | ' ' | '*' | 'O' => None,
             '\n' => None,
             'S' => { // Insert the start and return its coordinates
-                turns.insert(((i as i64) % line_width, -1 * (i as i64) / line_width), Node::new(c));
-                Some(((i as i64) %line_width, -1 * (i as i64) / line_width))
+                turns.insert(((i as i64) % line_width, -(i as i64) / line_width), Node::new(c));
+                Some(((i as i64) %line_width, -(i as i64) / line_width))
             },
             _ => { // Insert the Node but don't return
-                turns.insert(((i as i64) % line_width, -1 * (i as i64) / line_width), Node::new(c));
+                turns.insert(((i as i64) % line_width, -(i as i64) / line_width), Node::new(c));
                 None
             }
         }
@@ -126,7 +126,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let mut coords_with_direction: IndexMap<(i64, i64), Direction> = IndexMap::new();
     let mut step_count = 0;
     let (mut x, mut y) = (start_x, start_y);
-    let mut turn_count = 0; // CCW increases, CW decreases
+    let mut turn_count = 0; // Ccw increases, Cw decreases
     loop {
         (x,y) = match dir {
             Direction::North => (x, y+1),
@@ -166,8 +166,8 @@ fn read_contents(cont: &str) -> (i64, i64) {
                 step_count += 1;
                 dir = match val.get_direction(dir) {
                     Some((val, Turn::Straight)) => val,
-                    Some((val, Turn::CW)) => { turn_count -= 1; val},
-                    Some((val, Turn::CCW)) => { turn_count += 1; val},
+                    Some((val, Turn::Cw)) => { turn_count -= 1; val},
+                    Some((val, Turn::Ccw)) => { turn_count += 1; val},
                     None => {
                         // Trying to move to a square from an invalid direction
                         step_count = 0;
@@ -188,9 +188,9 @@ fn read_contents(cont: &str) -> (i64, i64) {
             },
         }
     }
-    // If turn count is positive, our loop was CCW, otherwise CW
-    // For CCW loops need to move in -x direction, whenever direction is North
-    // For CW loops do the opposite
+    // If turn count is positive, our loop was Ccw, otherwise Cw
+    // For Ccw loops need to move in -x direction, whenever direction is North
+    // For Cw loops do the opposite
     let add = if turn_count > 0 { -1 } else { 1 };
     let mut prev_dir: Option<Direction> = None;
     let area: i64 = coords_with_direction.iter().map(|(&(mut x, y), dir)| { 
