@@ -19,24 +19,11 @@ struct Range {
 
 impl Range {
     fn contains(&self, other: &Range) -> bool {
-        if (self.max >= other.max) & (self.min <= other.min) {
-            true
-        } else if (other.max >= self.max) & (other.min <= self.min) {
-            true
-        } else {
-            false
-        }
+        ((self.max >= other.max) & (self.min <= other.min)) | ((other.max >= self.max) & (other.min <= self.min))
     }
 
     fn overlaps(&self, other: &Range) -> bool {
-        if (self.max <= other.max) & (self.max >= other.min) {
-            true
-        //} else if (other.max >= self.max) & (other.min <= self.min) {
-        } else if (other.max <= self.max) & (other.max >= self.min) {
-            true
-        } else {
-            false
-        }
+        ((self.max <= other.max) & (self.max >= other.min)) | ((other.max <= self.max) & (other.max >= self.min))
     }
 }
 

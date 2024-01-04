@@ -19,7 +19,7 @@ struct Fifo {
 
 impl Fifo {
     fn new(max_len: usize) -> Fifo {
-        Fifo {queue: VecDeque::new(), len: 0, max_len: max_len}
+        Fifo {queue: VecDeque::new(), len: 0, max_len}
     }
 
     fn add(&mut self, c: char) -> bool {
@@ -30,18 +30,14 @@ impl Fifo {
             self.queue.pop_front();
             self.queue.push_back(c);
         }
-        if self.queue.iter().unique().count() == self.max_len {
-            true
-        } else {
-            false
-        }
+        self.queue.iter().unique().count() == self.max_len
     }
 }
 
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     // In part 1 we add 1 one row/column for each empty one.
     // In other words multiply amount of empty space by 2
@@ -54,7 +50,7 @@ fn main() {
 
 fn read_contents(cont: &str, count: usize) -> i64 {
     let mut deq = Fifo::new(count);
-    let i = cont.chars().into_iter().enumerate().find_map(|(i,v)| {
+    let i = cont.chars().enumerate().find_map(|(i,v)| {
         if deq.add(v) {
             Some(i + 1)
         } else {

@@ -16,7 +16,7 @@ struct Args {
 fn main() {
     let args = Args::parse();
 
-    let contents = fs::read_to_string(&args.input)
+    let contents = fs::read_to_string(args.input)
         .expect("Should have been able to read the file");
     // In part 1 we add 1 one row/column for each empty one.
     // In other words multiply amount of empty space by 2
@@ -35,7 +35,7 @@ fn get_directory_size(dir: &String, directories: &HashMap<String, Vec<String>>, 
     let vec = directories.get(dir).unwrap();
     for v in vec {
         match files.get(v) {
-            None => sum += get_directory_size(&v, directories, files),
+            None => sum += get_directory_size(v, directories, files),
             Some(s) => sum += s,
         }
     }
@@ -50,7 +50,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let tmp =  current_dir.clone();
     directories.insert(tmp, vec![]);
     for s in cont.split("$ ") {
-        if s == "" {
+        if s.is_empty() {
             continue;
         }
         if &s[..4] == "cd /" {
@@ -58,9 +58,9 @@ fn read_contents(cont: &str) -> (i64, i64) {
         }
         match &s[..2] {
             "cd" => {
-                let dir = re1.captures(&s).unwrap().get(1).unwrap().as_str();
+                let dir = re1.captures(s).unwrap().get(1).unwrap().as_str();
                 if dir == ".." {
-                    let temp = current_dir.split("+").into_iter().with_position().filter_map(|(p, v)| {
+                    let temp = current_dir.split('+').with_position().filter_map(|(p, v)| {
                         match p {
                             Position::Last | Position::Only => None,
                             _ => Some(v)
@@ -85,7 +85,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
                     }
                 })
                     {
-                        match v.split(" ").collect_tuple().unwrap() {
+                        match v.split(' ').collect_tuple().unwrap() {
                             ("dir", d) => {
                                 let new_dir: String = get_new_dir(&current_dir, d);
                                 if !directories.get(&current_dir).unwrap().contains(&new_dir) {
@@ -137,7 +137,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
             None
         }
     }).sorted().collect();
-    (ans1, *ans2.get(0).unwrap())
+    (ans1, *ans2.first().unwrap())
 }
 
 // Total space 70 000 000

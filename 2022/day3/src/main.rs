@@ -26,11 +26,11 @@ fn get_priority(c: char) -> i32 {
 fn read_file(filename: &str) {
     let contents = fs::read_to_string(filename)
         .expect("Should have been able to read the file");
-    let lines = contents.split("\n");
+    let lines = contents.split('\n');
 
     let mut total = 0;
     for ln in lines {
-        if ln == "" {
+        if ln.is_empty() {
             continue
         }
         let n = ln.len();
@@ -47,7 +47,7 @@ fn read_file(filename: &str) {
 fn read_file2(filename: &str) {
     let contents = fs::read_to_string(filename)
         .expect("Should have been able to read the file");
-    let lines: Vec<&str> = contents.split("\n").collect();
+    let lines: Vec<&str> = contents.split('\n').collect();
 
     let mut total = 0;
     for lns in lines.chunks(3) {
