@@ -21,7 +21,7 @@ fn main() {
     println!("Part 2 answer is {}", part2); 
 }
 
-// Find any substrings of form mul(a,b) and get the sum of a+b
+// Find any substrings of form mul(a,b) and get the sum of a*b
 fn get_part1(ln: &str) -> i64 {
     let re: Regex = Regex::new(r"mul\(([0-9]*),([0-9]*)\)").unwrap();
     let res = re.captures_iter(ln).map(|m| {
@@ -30,7 +30,7 @@ fn get_part1(ln: &str) -> i64 {
     res
 }
 
-// Find any substrings of form mul(a,b) and get the sum of a+b
+// Find any substrings of form mul(a,b) and get the sum of a*b
 // After command don't() any multiplication commands
 // should be ignored until there is a do() command
 fn get_part2(ln: &str) -> i64 {
