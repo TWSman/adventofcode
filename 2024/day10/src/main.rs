@@ -92,6 +92,8 @@ fn read_contents(cont: &str) -> (u64, u64) {
     (get_part1(&map), get_part2(&map))
 }
 
+// In part1 we want the count unique end points from each trail head
+// There could be multiple paths joining start to end, but each end point still only counts as one
 fn get_part1(map: &BTreeMap<(i64, i64), Point>) -> u64 {
     let trailheads = map.iter().filter(|((_x, _y), p)| {p.height == 0}).collect::<BTreeMap<&(i64, i64), &Point>>();
     trailheads.iter().map(|((_x, _y),p)| {
@@ -123,6 +125,7 @@ fn get_part1(map: &BTreeMap<(i64, i64), Point>) -> u64 {
     }).sum()
 }
 
+// In part1 we want the count unique paths from each trailhead
 fn get_part2(map: &BTreeMap<(i64, i64), Point>) -> u64 {
     let trailheads = map.iter().filter(|((_x, _y), p)| {p.height == 0}).collect::<BTreeMap<&(i64, i64), &Point>>();
     trailheads.iter().map(|((_x, _y),p)| {
@@ -159,7 +162,6 @@ mod tests {
 
     #[test]
     fn example() {
-        // Take the start of main puzzle input
         let a = "89010123
 78121874
 87430965
