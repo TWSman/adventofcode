@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::fs;
+use std::io;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use strum::IntoEnumIterator;
@@ -62,11 +63,12 @@ struct Region {
     start: (i64, i64),
     area: u64,
     border: Vec<Border>,
+    edges: u64,
 }
 
 impl Region {
     const fn new(x: i64, y: i64, c: char) -> Self {
-        Self {start: (x,y), c, points: Vec::new(), area: 0, border: Vec::new()}
+        Self {start: (x,y), c, points: Vec::new(), area: 0, edges: 0, border: Vec::new()}
     }
 
     fn add_point(&mut self, x: i64, y: i64) {
@@ -86,17 +88,20 @@ struct Point {
     outside: Vec<Dir>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct Border {
     start: (i64, i64),
     end: (i64, i64),
+    center: (i64, i64),
+    from: (i64, i64), // Which square defined this one
     direction: Dir,
+    edge_number: Option<usize>,
 }
 
 impl Border {
-    fn new(x: i64, y: i64, direction: Dir) -> Self {
-        let (start ,end) = get_start_end(x,y, direction);
-        Self {start, end, direction}
+    fn new(x: i64, y: i64, from: (i64, i64), direction: Dir) -> Self {
+        let (start ,end, center) = get_start_end(x,y, direction);
+        Self {start, end, center, from, direction, edge_number: None}
     }
 }
 
@@ -121,39 +126,124 @@ fn print_field(points: &PointMap, dim: (i64, i64)) {
     }
 }
 
+fn print_region(points: &Vec<(i64, i64)>, borders: &Vec<Border>, c: char, dim: (i64, i64), add_numbers: bool, which: bool) {
+    let nx = usize::try_from(dim.0).expect("Should work");
+    let ny = usize::try_from(dim.1).expect("Should work");
+    let mut grid: Vec<Vec<char>> = vec![vec![' '; nx * 2 + 1]; ny * 2 + 1];
+    for i in 0..nx {
+        for j in 0..ny {
+            grid[i*2+1][j*2+1] = '.';
+        }
+    }
+    let mut ymin = 400;
+    let mut ymax = 0;
+    let mut xmin = 400;
+    let mut xmax = 0;
+    for p in points {
+        let i = usize::try_from(p.0 + 1).expect("x should be nonnegative");
+        let j = usize::try_from(-p.1 + 1).expect("y should be nonpositive"); 
+        if j > ymax {
+            ymax = j
+        } 
+        if j < ymin {
+            ymin = j
+        }
+        grid[j][i] = c;
+    }
+    for b in borders {
+        let i = usize::try_from(b.center.0 + 1).expect("x should be nonnegative");
+        let j = usize::try_from(-b.center.1 + 1).expect("y should be nonpositive"); 
+
+        if b.edge_number.is_some() & add_numbers {
+            let edge_number = b.edge_number.unwrap();
+            let a = if which {
+                edge_number % 10
+            } else {
+                edge_number / 10
+            };
+            grid[j][i] = char::from_digit(a as u32, 10).unwrap();
+        } else {
+            grid[j][i] = match b.direction {
+                Dir::N | Dir::S => '|',
+                Dir::W | Dir::E => '-',
+            };
+        }
+        if j > ymax {
+            ymax = j;
+        } 
+        if j < ymin {
+            ymin = j;
+        }
+        if i > xmax {
+            xmax = i;
+        }
+        if i < xmin {
+            xmin = i;
+        }
+    }
+    for (i,ln) in grid.iter().enumerate() {
+        if i < ymin {
+            continue
+        }
+        if i > ymax {
+            continue
+        }
+        println!("{}", ln.iter().enumerate().skip(xmin).filter_map(|(i,m)| {
+            if i <= xmax {
+                Some(m)
+            } else {
+                None
+            }
+        }).collect::<String>());
+    }
+}
+
+
 
 fn main() {
     let args = Args::parse();
     let contents = fs::read_to_string(args.input).expect("Should have been able to read the file");
     let (part1, part2) = read_contents(&contents);
     println!("Part 1 answer is {part1}");
-    // 873472 is too high
-    // 872936 also too high
     println!("Part 2 answer is {part2}");
 }
 
-fn reorder_border(borders: &Vec<Border>) -> Vec<Border> {
-    dbg!(&borders.len());
+fn reorder_border(borders: &[Border]) -> Vec<Border> {
+    let num_borders = borders.iter().enumerate().collect::<Vec<(usize, &Border)>>();
     let mut found: BTreeSet<usize> = BTreeSet::new();
     let mut new_vec: Vec<Border> = vec![];
-    for (i,b) in borders.iter().enumerate() {
-        let mut next = b;
+    for (i,b) in &num_borders {
+        let mut inturn = b;
         let mut ii = i;
         loop {
-            if found.contains(&ii) {
+            if found.contains(ii) {
                 break;
             }
-            new_vec.push(next.clone()); 
-            found.insert(ii);
-            match borders.iter().enumerate().filter(|(j,m)| {
-                (m.start == next.end) & (m.direction != next.direction.get_opposite())
-            }).next() {
+            new_vec.push(**inturn); 
+            found.insert(*ii);
+
+            let cc: Vec<_> = num_borders.iter().filter(|(_,m)| {
+                // This is a candidate
+                (m.start == inturn.end) & (m.direction != inturn.direction.get_opposite())
+            }).collect();
+
+            // With complicated borders there can be multiple candidates
+            // It seems to be enough the find the border that shares the inside point
+            let cc2: Vec<_> = if cc.len() >= 2 {
+                cc.iter().filter(|(_,m)| {
+                    inturn.from == m.from
+                }).collect()
+            } else {
+                cc.iter().collect()
+            };
+            assert_eq!(cc2.len(), 1);
+            match cc2.first() {
                 Some((j,tmp)) => {
-                        next = tmp;
-                        ii = j;
-                    }
+                    inturn = tmp;
+                    ii = j;
+                }
                 None => {
-                        continue;
+                    break;
                 }
             }
         }
@@ -161,35 +251,16 @@ fn reorder_border(borders: &Vec<Border>) -> Vec<Border> {
     new_vec
 }
 
-fn locate_border_loc(border: &Border, borders: &Vec<Border>) -> usize {
-    for i in 0..borders.len() {
-        let b = &borders[i];
-        if b.start == border.end {
-            // Should be put before b
-            return i;
-        }
-    }
-    // Otherwise put this at the end
-    return borders.len();
-}
-
-// If border location is (0, 1) and direction West
-// Start is (1,1), end is (-1, 1)
-
-
-// If border location is (1, 0) and direction North
-// Start is (1, -1)
-// End is (1, 1)
-fn get_start_end(x: i64, y: i64, direction: Dir) -> ((i64, i64), (i64, i64)){
+fn get_start_end(x: i64, y: i64, direction: Dir) -> ((i64, i64), (i64, i64), (i64,i64)){
     match direction {
-        Dir::W => ((x + 1, y), (x - 1, y)),
-        Dir::E => ((x - 1, y), (x + 1, y)),
-        Dir::N => ((x, y - 1), (x, y + 1)),
-        Dir::S => ((x, y + 1), (x, y - 1)),
+        Dir::W => ((x + 1, y), (x - 1, y), (x,y)),
+        Dir::E => ((x - 1, y), (x + 1, y), (x,y)),
+        Dir::N => ((x, y - 1), (x, y + 1), (x,y)),
+        Dir::S => ((x, y + 1), (x, y - 1), (x,y)),
     }
 }
 
-fn read_map(cont: &str) -> (PointMap, RegionMap) {
+fn read_map(cont: &str) -> (PointMap, RegionMap, (i64, i64)) {
     let height = cont.lines().count();
     let width = cont.lines().next().unwrap().chars().count();
     let dim = (i64::try_from(width).unwrap(), i64::try_from(height).unwrap());
@@ -233,9 +304,11 @@ fn read_map(cont: &str) -> (PointMap, RegionMap) {
             let mut reg = Region::new(x, y, p.c);
             reg.add_point(x, y);
 
+            // Start looking from the region origin
             let mut heads: Vec<Point> = vec![p.clone()];
             let mut visited: BTreeSet<(i64,i64)> = BTreeSet::new();
             visited.insert((x,y));
+            // Loop until this region has been exhausted
             loop {
                 match heads.pop() {
                     None => {
@@ -246,6 +319,7 @@ fn read_map(cont: &str) -> (PointMap, RegionMap) {
                         for dir in &head.outside {
                             let b = Border::new(head.x + dir.get_dir().0 / 2,
                                     head.y + dir.get_dir().1 / 2,
+                                    (head.x, head.y),
                                     dir.get_next(),
                                 );
                             reg.border.push(b);
@@ -257,6 +331,7 @@ fn read_map(cont: &str) -> (PointMap, RegionMap) {
                                 continue;
                             }
                             let new_head = points.get_mut(&(head.x  + dx, head.y + dy)).unwrap();
+                            // Keep track of the region for each point
                             new_head.region = Some(region);
                             reg.add_point(new_head.x, new_head.y);
                             visited.insert((new_head.x, new_head.y));
@@ -270,38 +345,83 @@ fn read_map(cont: &str) -> (PointMap, RegionMap) {
                 reg);
         }
     }
-    (points, regions)
+    (points, regions, dim)
 }
 
 fn get_part1(regions: &RegionMap) -> u64 {
     regions.iter().map(|(_i, m)| m.area * m.border.len() as u64).sum()
 }
 
-fn get_part2(regions: &RegionMap) -> u64 {
-    regions.iter().map(|(_i, m)| {
+fn get_part2(regions: &mut RegionMap, dim: (i64, i64), print: bool) -> u64 {
+    let res = regions.iter_mut().map(|(_i, m)| {
         let mut edges = 0;
         let mut prev = m.border.last().expect("Border should exist").clone();
-        let border = reorder_border(&m.border);
-        for b in border {
+        let mut border = reorder_border(&m.border);
+        let mut start = border.first().unwrap().clone();
+        for b in &mut border {
+            if b.end == start.start {
+                // We made a loop
+                if b.direction == start.direction {
+                    // This is to avoid double counting edges
+                    continue;
+                }
+            }
+            if prev.end != b.start {
+                // We jump to a new sub border
+                start = *b;
+            }
             if !((prev.end == b.start) & (prev.direction == b.direction)) {
                 edges += 1;
+                b.edge_number = Some(edges as usize);
             }
-            prev = b.clone();
+            prev = *b;
         }
-        dbg!(&edges);
-        if edges % 2 == 0 {
-            //assert!(edges % 2 == 0);
-            edges * m.area
-        } else {
-            (edges - 1) * m.area
+
+        m.border = border;
+        m.edges = edges;
+        // There must an even number of edges
+        assert!(edges % 2 == 0);
+        edges * m.area
+    }).sum();
+
+    if !print {
+        return res
+    }
+
+    // One by one print all the regions for debuggin
+    for (j,(i, f)) in regions.iter().enumerate().skip(33) {
+        if f.border.len() == 4 {
+            continue;
         }
-    }).sum()
+        if f.edges <= 6 {
+            continue;
+        }
+        print_region(&f.points, &f.border, f.c, dim, false, true);
+        print_region(&f.points, &f.border, f.c, dim, true, true);
+        print_region(&f.points, &f.border, f.c, dim, true, false);
+        println!("{}: {} {}",j + 1, i.0, i.1);
+        println!("{} edges", f.edges);
+        println!("{} borders", f.border.len());
+
+        println!("Press Enter to continue to the next iteration, or type 'exit' to quit:");
+        // Read input from the user
+        let mut input = String::new();
+
+        io::stdin().read_line(&mut input).expect("Failed to read input");
+        // Trim the input and check for the exit condition
+        let input = input.trim();
+        if input.eq_ignore_ascii_case("exit") {
+            println!("Exiting the loop.");
+            break;
+        }
+    }
+    //let (_i, f) = regions.first_key_value().unwrap();
+    res
 }
 
 fn read_contents(cont: &str) -> (u64, u64) {
-    let (_points, regions) = read_map(cont);
-    //dbg!(&regions);
-    (get_part1(&regions), get_part2(&regions))
+    let (_points, mut regions, dim) = read_map(cont);
+    (get_part1(&regions), get_part2(&mut regions, dim, false))
 }
 
 
@@ -343,5 +463,4 @@ MMMISSJEEE";
         assert_eq!(read_contents(&b).0, 1930);
         assert_eq!(read_contents(&b).1, 1206);
     }
-
 }
