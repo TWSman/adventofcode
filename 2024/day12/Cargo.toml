@@ -1,0 +1,9 @@
+[package]
+name = "day12"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.23", features = ["derive"] }
+strum = "0.26.3"
+strum_macros = "0.26.4"
