@@ -31,50 +31,56 @@ fn get_equation(ln: &str) -> (i64, i64) {
             panic!("Should not happen");
         },
         Some(m) => {
-            let a = m[2].parse::<i64>().unwrap();
-            let b = m[3].parse::<i64>().unwrap();
-            return (a,b);
+            let a = m[2].parse::<i64>().expect("Should be a number");
+            let b = m[3].parse::<i64>().expect("Should be a number");
+            (a,b)
         }
     }
-    (0,0)
 }
 
 
 fn mat_mul_v(m: ((i64,i64),(i64,i64)), vec: (i64,i64)) -> (i64,i64) {
+    // Multiply a vector (length 2) with a matrix (2x2)
     (m.0.0 * vec.0 + m.0.1 * vec.1, 
      m.1.0 * vec.0 + m.1.1 * vec.1)
 }
 
-//fn mat_mul(a: ((i64,i64),(i64,i64)), b: ((i64,i64),(i64,i64))) -> ((i64,i64),(i64,i64)) {
-//}
-
 fn vec_div(vec: (i64, i64), div: i64) -> (i64, i64) {
+    // Divide a vector (length 2) by a scalar
     (vec.0 / div, vec.1 / div)
 }
 
-fn solve(eq1: (i64, i64), eq2: (i64,i64), ans: (i64, i64)) -> Option<(i64, i64)> {
-    let a = eq1.0;
-    let c = eq1.1;
-    let b = eq2.0;
-    let d = eq2.1;
+fn solve(button_a: (i64, i64), button_b: (i64,i64), ans: (i64, i64)) -> Option<(i64, i64)> {
+    // Solves a system of equations
+    let a = button_a.0;
+    let b = button_b.0;
+    let c = button_a.1;
+    let d = button_b.1;
     let div = a * d - b * c;
-    // Get inverse of
-    // (a b)
-    // (c d)
+
+    // Get inverse matrix
     let inv = ((d, -b), (-c, a));
-    dbg!(&inv);
-    dbg!(&div);
-    let tmp = mat_mul_v(inv, ans);
-    dbg!(&tmp);
-    let solv = vec_div(tmp, div);
-    dbg!(&solv);
-    println!("{} {}", solv.0 * eq1.0 + solv.1 * eq2.0, solv.0 * eq1.1 + solv.1 * eq2.1);
-    if solv.0 * eq1.0 + solv.1 * eq2.0 == ans.0 {
+    let solv = vec_div(mat_mul_v(inv, ans), div);
+    if (solv.0 * button_a.0 + solv.1 * button_b.0 == ans.0) & 
+        (solv.0 * button_a.1 + solv.1 * button_b.1 == ans.1)
+    {
         Some(solv)
     } else {
         None
     }
+}
 
+fn get_cost(button_a: (i64, i64), button_b: (i64,i64), ans: (i64, i64)) -> i64 {
+    // Calculates the cost of the solution
+    // 3 coins for each A button press
+    // 1 coin for each B button press
+    let solv = solve(button_a, button_b, ans);
+    match solv {
+        None => 0,
+        Some(val) => {
+            val.0 * 3 + val.1
+        }
+    }
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
@@ -83,47 +89,33 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let mut part2 = 0;
     let mut w = 0;
 
-    //let re: Regex = Regex::new(r"Button A|B\(([0-9]*),([0-9]*)\)").unwrap();
-    let mut eq1 = (0,0);
-    let mut eq2 = (0,0);
-    let mut ans = (0,0);
+    // This will be added in part2
+    let add = 10_000_000_000_000;
+
+    let mut button_a = (0,0);
+    let mut button_b = (0,0);
     for ln in cont.lines() {
-        w = (w + 1) % 4;
+        w = (w + 1) % 4; // input is in 4 line blocks
         match w {
-            1 => {
-                eq1 = get_equation(&ln);
-            }
-            2 => {
-                eq2 = get_equation(&ln);
-            }
+            // First line gives 
+            1 => { button_a = get_equation(ln); }
+            2 => { button_b = get_equation(ln); }
             3 => {
-                let res = re.captures(&ln);
+                let res = re.captures(ln);
                 match res {
                     None => {
-                        panic!("Should not happen");
+                        panic!("No match found");
                     }
                     Some(m) => {
                         let a = m[1].parse::<i64>().unwrap();
                         let b = m[2].parse::<i64>().unwrap();
-                        ans = (a,b);
-                        println!("Solve");
-                        dbg!(eq1);
-                        dbg!(eq2);
-                        dbg!(ans);
-                        match solve(eq1, eq2, ans) {
-                            Some(val) => {
-                                part1 += val.0 * 3 + val.1;
-                            }
-                            None => {
-                                continue;
-                            }
-                        }
+                        part1 += get_cost(button_a, button_b, (a,b));
+                        part2 += get_cost(button_a, button_b, (a + add, b + add));
                     }
                 }
             }
             _ => continue
         }
-
     }
     (part1, part2)
 
@@ -134,7 +126,6 @@ fn read_contents(cont: &str) -> (i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn example() {
@@ -154,15 +145,15 @@ Button A: X+69, Y+23
 Button B: X+27, Y+71
 Prize: X=18641, Y=10279";
         assert_eq!(read_contents(&a).0, 480);
-        //assert_eq!(read_contents(&a).1, 81);
+        assert_eq!(read_contents(&a).1, 875318608908);
     }
 
     #[test] 
-    fn solvet() {
-        let eq1 = (94, 34);
-        let eq2 = (22, 67);
+    fn solver() {
+        let button_a = (94, 34);
+        let button_b = (22, 67);
         let ans = (8400, 5400);
-        assert_eq!(solve(eq1, eq2, ans), Some((80, 40)));
+        assert_eq!(solve(button_a, button_b, ans), Some((80, 40)));
     }
 
 }
