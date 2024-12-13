@@ -42,7 +42,7 @@ fn get_equation(ln: &str) -> (i64, i64) {
 
 fn mat_mul_v(m: ((i64,i64),(i64,i64)), vec: (i64,i64)) -> (i64,i64) {
     (m.0.0 * vec.0 + m.0.1 * vec.1, 
-     m.1.0 * vec.1 + m.1.1 * vec.1)
+     m.1.0 * vec.0 + m.1.1 * vec.1)
 }
 
 //fn mat_mul(a: ((i64,i64),(i64,i64)), b: ((i64,i64),(i64,i64))) -> ((i64,i64),(i64,i64)) {
@@ -52,7 +52,7 @@ fn vec_div(vec: (i64, i64), div: i64) -> (i64, i64) {
     (vec.0 / div, vec.1 / div)
 }
 
-fn solve(eq1: (i64, i64), eq2: (i64,i64), ans: (i64, i64)) -> i64 {
+fn solve(eq1: (i64, i64), eq2: (i64,i64), ans: (i64, i64)) -> Option<(i64, i64)> {
     let a = eq1.0;
     let c = eq1.1;
     let b = eq2.0;
@@ -68,8 +68,13 @@ fn solve(eq1: (i64, i64), eq2: (i64,i64), ans: (i64, i64)) -> i64 {
     dbg!(&tmp);
     let solv = vec_div(tmp, div);
     dbg!(&solv);
-    println!("{} {}", solv.0 * a + solv.1 * b, solv.0 * c + solv.1 * d);
-    0
+    println!("{} {}", solv.0 * eq1.0 + solv.1 * eq2.0, solv.0 * eq1.1 + solv.1 * eq2.1);
+    if solv.0 * eq1.0 + solv.1 * eq2.0 == ans.0 {
+        Some(solv)
+    } else {
+        None
+    }
+
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
@@ -105,7 +110,14 @@ fn read_contents(cont: &str) -> (i64, i64) {
                         dbg!(eq1);
                         dbg!(eq2);
                         dbg!(ans);
-                        part1 += solve(eq1,eq2, ans);
+                        match solve(eq1, eq2, ans) {
+                            Some(val) => {
+                                part1 += val.0 * 3 + val.1;
+                            }
+                            None => {
+                                continue;
+                            }
+                        }
                     }
                 }
             }
@@ -141,8 +153,16 @@ Prize: X=7870, Y=6450
 Button A: X+69, Y+23
 Button B: X+27, Y+71
 Prize: X=18641, Y=10279";
-        assert_eq!(read_contents(&a).0, 36);
-        assert_eq!(read_contents(&a).1, 81);
+        assert_eq!(read_contents(&a).0, 480);
+        //assert_eq!(read_contents(&a).1, 81);
+    }
+
+    #[test] 
+    fn solvet() {
+        let eq1 = (94, 34);
+        let eq2 = (22, 67);
+        let ans = (8400, 5400);
+        assert_eq!(solve(eq1, eq2, ans), Some((80, 40)));
     }
 
 }
