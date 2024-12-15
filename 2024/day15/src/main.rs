@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::fs;
+use std::collections::HashSet;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -30,18 +31,20 @@ impl Dir{
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 enum Object {
-    Rock,
+    Box,
     Robot,
     Wall,
     Empty,
+    Left,
+    Right,
 }
 
 impl Object {
     fn new(c: char) -> Self {
         match c {
-            'O' => Object::Rock,
+            'O' => Object::Box,
             '.' => Object::Empty,
             '@' => Object::Robot,
             '#' => Object::Wall,
@@ -65,12 +68,39 @@ impl Map {
     fn print_field(&self) {
         for ln in self.grid.iter() {
             println!("{}", ln.iter().map(|m| match m {
-                Object::Rock => 'O',
+                Object::Box => 'O',
                 Object::Robot => '@',
                 Object::Wall => '#',
                 Object::Empty => '.',
+                Object::Left => '[',
+                Object::Right => ']',
             }).collect::<String>());
         }
+    }
+    
+    fn convert(&self) -> Map {
+        let grid = self.grid.iter().map(|v| {
+            v.iter().flat_map(|o| match o {
+                Object::Box => [Object::Left, Object::Right],
+                Object::Empty => [Object::Empty, Object::Empty],
+                Object::Robot => [Object::Robot, Object::Empty],
+                Object::Wall => [Object::Wall, Object::Wall],
+                Object::Left => {panic!("Should not happen");},
+                Object::Right => {panic!("Should not happen");},
+
+            }).collect::<Vec<Object>>()
+        }).collect::<Vec<Vec<Object>>>();
+
+        let mut robot_loc: Option<(usize, usize)> = None;
+        for (y,v) in grid.iter().enumerate() {
+            for (x,t) in v.iter().enumerate() {
+                if t == &Object::Robot {
+                    robot_loc = Some((x,y))
+                }
+            }
+        }
+        let map = Map {robot_loc: robot_loc.unwrap(), grid};
+        map
     }
 
     fn get_coord_sum(&self) -> i64 {
@@ -79,7 +109,7 @@ impl Map {
         self.grid.iter().enumerate().map(|(y,v)|
             {
                 v.iter().enumerate().map(|(x,t)| {
-                    if t == &Object::Rock {
+                    if t == &Object::Box {
                         (100 * y + x) as i64
                     } else {
                         0
@@ -93,24 +123,62 @@ impl Map {
     fn apply(&mut self, moves: &Vec<Dir>) {
         for m in moves {
             self.apply_single(*m);
+            self.print_field();
         }
     }
 
     fn apply_single(&mut self, mov: Dir) {
+        dbg!(&mov);
         let robot_loc = self.robot_loc;
-        let (mut x, mut y) = robot_loc;
         let mut can_move: bool = true;
         let v_dir = mov.get_dir();
+        let mut boxes_to_move: Vec<(usize, usize)> = Vec::new(); // List of boxes to move, left
+        let mut head_list: Vec<(usize, usize)> = vec![(self.robot_loc)]; // List of boxes to move, left
+        let mut i = 0;
         loop {
-            (x,y) = sum_vec((x,y), v_dir);
+            i += 1;
+            if head_list.len() == 0 {
+                break;
+            }
+            if i > 10 {
+                panic!("i too large");
+            }
+            let (mut x, mut y) = head_list.pop().unwrap(); // Get next candidate for moving
+            (x,y) = sum_vec((x,y), v_dir); // Point for checking
             match self.grid[y][x] {
-                Object::Rock => {println!("Found rock at {x}, {y}"); continue;}
-                Object::Empty => {println!("Found empty at {x}, {y}"); break;}
-                Object::Wall => {println!("Found wall at {x}, {y}"); can_move = false; break;}
                 Object::Robot => {panic!("Should not happen");}
+                Object::Empty => {println!("Found empty at {x}, {y}"); continue;}
+                Object::Wall => {println!("Found wall at {x}, {y}"); can_move = false; break;}
+                Object::Box => {
+                    println!("Found box at {x}, {y}");
+                    if !boxes_to_move.contains(&(x,y)) {
+                        boxes_to_move.push((x,y));
+                        head_list.push((x,y));
+                    }
+                }
+                Object::Left => {println!("Found left side at {x}, {y}");
+                    if !boxes_to_move.contains(&(x,y)) {
+                        boxes_to_move.push((x,y));
+                        head_list.push((x,y));
+                    }
+                    if !boxes_to_move.contains(&(x+1,y)) {
+                        boxes_to_move.push((x+1,y));
+                        head_list.push((x+1,y));
+                    }
+                },
+                Object::Right => {
+                    println!("Found right side at {x}, {y}");
+                    if !boxes_to_move.contains(&(x,y)) {
+                        boxes_to_move.push((x,y));
+                        head_list.push((x,y));
+                    }
+                    if !boxes_to_move.contains(&(x+1,y)) {
+                        boxes_to_move.push((x-1,y));
+                        head_list.push((x-1,y));
+                    }
+                },
             }
         }
-        dbg!((x,y));
         if can_move {
             println!("Can move");
             // Old location is now empty
@@ -118,22 +186,30 @@ impl Map {
             let new_robot_loc = sum_vec(self.robot_loc, v_dir);
             let (xx, yy) = new_robot_loc;
 
-            let c = self.grid[yy][xx];
-            match c {
-                Object::Empty => {()
-                },
-                Object::Wall | Object::Robot => {
-                    panic!("Should not happen");
-                },
-                Object::Rock => {
-                    self.grid[y][x] = Object::Rock;
-                },
+            let mut targets: HashSet<(usize, usize, Object)> = HashSet::new();
+            let mut start_points: HashSet<(usize, usize)> = HashSet::new();
+            for o in boxes_to_move {
+                start_points.insert((o.0,o.1));
+                let new_loc = sum_vec(o, v_dir);
+                targets.insert((new_loc.0, new_loc.1, self.grid[o.1][o.0]));
             }
+            for s in start_points {
+                // Read what exists here currently
+                let o = self.grid[s.1][s.0];
+                // If no move targets this location, replace it with empty
+                if !targets.contains(&(s.0,s.1,o)) {
+                    self.grid[s.1][s.0] = Object::Empty;
+                }
+            }
+            for t in targets {
+                // Change target location to target object
+                self.grid[t.1][t.0] = t.2;
+            }
+            // Set robot location
             self.grid[yy][xx] = Object::Robot;
             self.robot_loc = new_robot_loc;
         }
     }
-
 }
 
 
@@ -170,8 +246,9 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let (map, moves) = read_map(cont);
     map.print_field();
     let part1 = get_part1(&mut map.clone(), &moves);
-    map.print_field();
-    (part1, get_part2(&map))
+    let new_map = map.convert();
+    new_map.print_field();
+    (part1, get_part2(&mut new_map.clone(), &moves))
 }
 
 fn get_part1(map: &mut Map, moves: &Vec<Dir>) -> i64 {
@@ -180,8 +257,10 @@ fn get_part1(map: &mut Map, moves: &Vec<Dir>) -> i64 {
     map.get_coord_sum()
 }
 
-fn get_part2(map: &Map) -> i64 {
-    0
+fn get_part2(map: &mut Map, moves: &Vec<Dir>) -> i64 {
+    map.apply(moves);
+
+    map.get_coord_sum()
 }
 
 
@@ -232,7 +311,8 @@ v^^>>><<^^<>>^v^<v^vv<>v^<<>^<^v^v><^<<<><<^<v><v<>vv>>v><v^<vv<>v^<<^
 ########
 
 <^^>>>vv<v>>v<<";
-        assert_eq!(read_contents(&b).0, 2028);
         assert_eq!(read_contents(&a).0, 10092);
+        assert_eq!(read_contents(&a).1, 9021);
+        assert_eq!(read_contents(&b).0, 2028);
     }
 }
