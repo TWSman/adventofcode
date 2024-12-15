@@ -60,13 +60,13 @@ struct Map {
 }
 
 fn sum_vec(a: (usize, usize), b: (i64, i64)) -> (usize, usize) {
-    ((a.0 as i64 + b.0) as usize
-     , (a.1 as i64 + b.1) as usize)
+    (usize::try_from(a.0 as i64 + b.0).unwrap(),
+      usize::try_from(a.1 as i64 + b.1).unwrap())
 }
 
 impl Map {
     fn print_field(&self) {
-        for ln in self.grid.iter() {
+        for ln in &self.grid {
             println!("{}", ln.iter().map(|m| match m {
                 Object::Box => 'O',
                 Object::Robot => '@',
@@ -85,8 +85,7 @@ impl Map {
                 Object::Empty => [Object::Empty, Object::Empty],
                 Object::Robot => [Object::Robot, Object::Empty],
                 Object::Wall => [Object::Wall, Object::Wall],
-                Object::Left => {panic!("Should not happen");},
-                Object::Right => {panic!("Should not happen");},
+                Object::Left | Object::Right => {panic!("Should not happen");},
 
             }).collect::<Vec<Object>>()
         }).collect::<Vec<Vec<Object>>>();
@@ -95,27 +94,26 @@ impl Map {
         for (y,v) in grid.iter().enumerate() {
             for (x,t) in v.iter().enumerate() {
                 if t == &Object::Robot {
-                    robot_loc = Some((x,y))
+                    robot_loc = Some((x,y));
                 }
             }
         }
-        let map = Map {robot_loc: robot_loc.unwrap(), grid};
-        map
+        Map {robot_loc: robot_loc.unwrap(), grid}
     }
 
-    fn get_coord_sum(&self) -> i64 {
+    fn get_coord_sum(&self) -> u64 {
         // y coordinates times 100
         // + x coordinate
         self.grid.iter().enumerate().map(|(y,v)|
             {
                 v.iter().enumerate().map(|(x,t)| {
-                    if t == &Object::Box {
-                        (100 * y + x) as i64
+                    if (t == &Object::Box) | (t == &Object::Left) {
+                        (100 * y + x) as u64
                     } else {
                         0
                     }
                 }
-                ).sum::<i64>()
+                ).sum::<u64>()
             }
         ).sum()
     }
@@ -123,40 +121,32 @@ impl Map {
     fn apply(&mut self, moves: &Vec<Dir>) {
         for m in moves {
             self.apply_single(*m);
-            self.print_field();
         }
     }
 
     fn apply_single(&mut self, mov: Dir) {
-        dbg!(&mov);
         let robot_loc = self.robot_loc;
         let mut can_move: bool = true;
         let v_dir = mov.get_dir();
         let mut boxes_to_move: Vec<(usize, usize)> = Vec::new(); // List of boxes to move, left
         let mut head_list: Vec<(usize, usize)> = vec![(self.robot_loc)]; // List of boxes to move, left
-        let mut i = 0;
         loop {
-            i += 1;
-            if head_list.len() == 0 {
+            if head_list.is_empty() {
                 break;
-            }
-            if i > 10 {
-                panic!("i too large");
             }
             let (mut x, mut y) = head_list.pop().unwrap(); // Get next candidate for moving
             (x,y) = sum_vec((x,y), v_dir); // Point for checking
-            match self.grid[y][x] {
+            match self.grid[y].get(x).unwrap() {
                 Object::Robot => {panic!("Should not happen");}
-                Object::Empty => {println!("Found empty at {x}, {y}"); continue;}
-                Object::Wall => {println!("Found wall at {x}, {y}"); can_move = false; break;}
+                Object::Empty => {continue;}
+                Object::Wall => { can_move = false; break;}
                 Object::Box => {
-                    println!("Found box at {x}, {y}");
                     if !boxes_to_move.contains(&(x,y)) {
                         boxes_to_move.push((x,y));
                         head_list.push((x,y));
                     }
                 }
-                Object::Left => {println!("Found left side at {x}, {y}");
+                Object::Left => {
                     if !boxes_to_move.contains(&(x,y)) {
                         boxes_to_move.push((x,y));
                         head_list.push((x,y));
@@ -167,12 +157,11 @@ impl Map {
                     }
                 },
                 Object::Right => {
-                    println!("Found right side at {x}, {y}");
                     if !boxes_to_move.contains(&(x,y)) {
                         boxes_to_move.push((x,y));
                         head_list.push((x,y));
                     }
-                    if !boxes_to_move.contains(&(x+1,y)) {
+                    if !boxes_to_move.contains(&(x-1,y)) {
                         boxes_to_move.push((x-1,y));
                         head_list.push((x-1,y));
                     }
@@ -180,7 +169,6 @@ impl Map {
             }
         }
         if can_move {
-            println!("Can move");
             // Old location is now empty
             self.grid[robot_loc.1][robot_loc.0] = Object::Empty;
             let new_robot_loc = sum_vec(self.robot_loc, v_dir);
@@ -234,7 +222,7 @@ fn read_map(cont: &str) -> (Map, Vec<Dir>) {
     for (y,v) in grid.iter().enumerate() {
         for (x,t) in v.iter().enumerate() {
             if t == &Object::Robot {
-                robot_loc = Some((x,y))
+                robot_loc = Some((x,y));
             }
         }
     }
@@ -242,7 +230,7 @@ fn read_map(cont: &str) -> (Map, Vec<Dir>) {
     (map, instructions)
 }
 
-fn read_contents(cont: &str) -> (i64, i64) {
+fn read_contents(cont: &str) -> (u64, u64) {
     let (map, moves) = read_map(cont);
     map.print_field();
     let part1 = get_part1(&mut map.clone(), &moves);
@@ -251,13 +239,13 @@ fn read_contents(cont: &str) -> (i64, i64) {
     (part1, get_part2(&mut new_map.clone(), &moves))
 }
 
-fn get_part1(map: &mut Map, moves: &Vec<Dir>) -> i64 {
+fn get_part1(map: &mut Map, moves: &Vec<Dir>) -> u64 {
     map.apply(moves);
 
     map.get_coord_sum()
 }
 
-fn get_part2(map: &mut Map, moves: &Vec<Dir>) -> i64 {
+fn get_part2(map: &mut Map, moves: &Vec<Dir>) -> u64 {
     map.apply(moves);
 
     map.get_coord_sum()
