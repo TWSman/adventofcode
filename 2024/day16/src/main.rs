@@ -1,14 +1,11 @@
-#[macro_use]
-extern crate num_derive;
-
 use clap::Parser;
 use std::fs;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use priority_queue::PriorityQueue;
 use std::fmt::Display;
 use core::fmt;
-use num_traits::FromPrimitive;
+use shared::Dir;
 
 
 #[derive(Parser, Debug)]
@@ -19,45 +16,6 @@ struct Args {
     input: String,
 }
 
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash, Ord, PartialOrd, FromPrimitive)]
-enum Dir {
-    N,
-    E,
-    S,
-    W,
-}
-
-
-impl Display for Dir{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Dir::N => write!(f, "^"),
-            Dir::S => write!(f, "v"),
-            Dir::W => write!(f, "<"),
-            Dir::E => write!(f, ">"),
-        }
-    }
-}
-
-impl Dir{
-    const fn get_dir(self) -> (i64, i64) {
-        match self {
-            Self::N => (0, -1),
-            Self::E => (1, 0),
-            Self::S => (0, 1),
-            Self::W => (-1, 0),
-        }
-    }
-    
-    fn cw(self) -> Self {
-        FromPrimitive::from_u8((self as u8 + 1) % 4).unwrap()
-    }
-
-    fn ccw(self) -> Self {
-        FromPrimitive::from_u8((self as u8 + 3) % 4).unwrap()
-    }
-}
 
 struct Map {
     grid: Vec<Vec<Object>>,
@@ -195,7 +153,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let map = read_map(cont);
     map.print_map();
     let mut paths = PriorityQueue::new();
-    let mut already_found: BTreeMap<(i64, i64, Dir), i64> = BTreeMap::new();
+    let mut already_found: HashMap<(i64, i64, Dir), i64> = HashMap::new();
 
     // Reindeer start by facing East
     let start = PathHead::new(map.start.0, map.start.1, 0, Dir::E, Vec::new());
@@ -272,7 +230,8 @@ fn read_contents(cont: &str) -> (i64, i64) {
             }
         }
     }
-    let mut visited_positions: BTreeSet<(i64,i64)> = BTreeSet::new();
+    let mut visited_positions: HashSet<(i64,i64)> = HashSet::new();
+    visited_positions.insert((map.start.0, map.start.1));
     for p in &winning_paths {
         for x in &p.history {
             visited_positions.insert((x.0, x.1));

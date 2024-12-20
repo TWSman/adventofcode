@@ -5,7 +5,7 @@ use priority_queue::PriorityQueue;
 use std::fmt::Display;
 use core::fmt;
 use strum::IntoEnumIterator; // 0.17.1
-use strum_macros::EnumIter; // 0.17.1
+use shared::Dir;
 
 
 #[derive(Parser, Debug)]
@@ -16,37 +16,6 @@ struct Args {
     input: String,
 }
 
-
-#[derive(Debug, Clone, Copy, EnumIter)]
-enum Dir {
-    N,
-    E,
-    S,
-    W,
-}
-
-
-impl Display for Dir{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Dir::N => write!(f, "^"),
-            Dir::S => write!(f, "v"),
-            Dir::W => write!(f, "<"),
-            Dir::E => write!(f, ">"),
-        }
-    }
-}
-
-impl Dir{
-    const fn get_dir(self) -> (i64, i64) {
-        match self {
-            Self::N => (0, -1),
-            Self::E => (1, 0),
-            Self::S => (0, 1),
-            Self::W => (-1, 0),
-        }
-    }
-}
 
 struct Map {
     points: BTreeMap<(i64, i64), i64>,

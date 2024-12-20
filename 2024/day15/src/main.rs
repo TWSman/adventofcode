@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::fs;
 use std::collections::HashSet;
+use shared::Dir;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -10,26 +11,6 @@ struct Args {
     input: String,
 }
 
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-enum Dir {
-    N,
-    E,
-    S,
-    W,
-}
-
-
-impl Dir{
-    const fn get_dir(self) -> (i64, i64) {
-        match self {
-            Self::S => (0, 1),
-            Self::E => (1, 0),
-            Self::N => (0, -1),
-            Self::W => (-1, 0),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 enum Object {

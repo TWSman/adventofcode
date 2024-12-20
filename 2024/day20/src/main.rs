@@ -1,14 +1,9 @@
-#[macro_use]
-extern crate num_derive;
-
 use clap::Parser;
 use std::fs;
 use std::fmt::Display;
 use core::fmt;
-use num_traits::FromPrimitive;
+use shared::Dir;
 use strum::IntoEnumIterator; // 0.17.1
-use strum_macros::EnumIter; // 0.17.1
-
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -16,60 +11,6 @@ struct Args {
     /// Input file
     #[arg(short, long)]
     input: String,
-}
-
-
-#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, FromPrimitive, Hash)]
-enum Dir {
-    N,
-    E,
-    S,
-    W,
-}
-
-
-impl Display for Dir{
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Dir::N => write!(f, "^"),
-            Dir::S => write!(f, "v"),
-            Dir::W => write!(f, "<"),
-            Dir::E => write!(f, ">"),
-        }
-    }
-}
-
-impl Dir{
-    fn new(c: char) -> Self {
-        match c {
-            '^' => Dir::N,
-            'v' => Dir::S,
-            '<' => Dir::W,
-            '>' => Dir::E,
-            _ => panic!("Unknown character"),
-        }
-    }
-    const fn get_dir(self) -> (i64, i64) {
-        match self {
-            Self::N => (0, -1),
-            Self::E => (1, 0),
-            Self::S => (0, 1),
-            Self::W => (-1, 0),
-        }
-    }
-
-    const fn get_char(self) -> char {
-        match self {
-            Self::N => '^',
-            Self::E => '>',
-            Self::S => 'v',
-            Self::W => '<',
-        }
-    }
-
-    fn opposite(self) -> Self {
-        FromPrimitive::from_u8((self as u8 + 2) % 4).unwrap()
-    }
 }
 
 struct Map {
