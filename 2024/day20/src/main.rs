@@ -3,8 +3,6 @@ extern crate num_derive;
 
 use clap::Parser;
 use std::fs;
-use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::fmt::Display;
 use core::fmt;
 use num_traits::FromPrimitive;
@@ -21,7 +19,7 @@ struct Args {
 }
 
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, FromPrimitive)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, FromPrimitive, Hash)]
 enum Dir {
     N,
     E,
@@ -42,6 +40,15 @@ impl Display for Dir{
 }
 
 impl Dir{
+    fn new(c: char) -> Self {
+        match c {
+            '^' => Dir::N,
+            'v' => Dir::S,
+            '<' => Dir::W,
+            '>' => Dir::E,
+            _ => panic!("Unknown character"),
+        }
+    }
     const fn get_dir(self) -> (i64, i64) {
         match self {
             Self::N => (0, -1),
@@ -50,17 +57,18 @@ impl Dir{
             Self::W => (-1, 0),
         }
     }
-    
-    fn cw(self) -> Self {
-        FromPrimitive::from_u8((self as u8 + 1) % 4).unwrap()
+
+    const fn get_char(self) -> char {
+        match self {
+            Self::N => '^',
+            Self::E => '>',
+            Self::S => 'v',
+            Self::W => '<',
+        }
     }
 
     fn opposite(self) -> Self {
         FromPrimitive::from_u8((self as u8 + 2) % 4).unwrap()
-    }
-
-    fn ccw(self) -> Self {
-        FromPrimitive::from_u8((self as u8 + 3) % 4).unwrap()
     }
 }
 
@@ -78,14 +86,21 @@ impl Map {
                 Object::Empty => '.',
                 Object::Start => 'S',
                 Object::End => 'E',
+                Object::Path(v) => v.get_char(),
             }).collect::<String>());
         }
     }
 
-    fn print_path(&self, path: Vec<PathHead>) {
+    fn print_path(&self, path: Vec<PathNode>) {
         let mut grid = self.grid.clone();
         for p in path {
-            grid[p.y as usize][p.x as usize] = Object::Start;
+            if grid[p.y as usize][p.x as usize] != Object::Empty {
+                continue;
+            }
+            grid[p.y as usize][p.x as usize] = match p.direction {
+                Some(val) => Object::Path(val),
+                None => Object::Start,
+            }
         }
         for ln in &grid {
             println!("{}", ln.iter().map(|m| match m {
@@ -93,6 +108,7 @@ impl Map {
                 Object::Empty => '.',
                 Object::Start => 'S',
                 Object::End => 'E',
+                Object::Path(v) => v.get_char(),
             }).collect::<String>());
         }
     }
@@ -113,21 +129,22 @@ impl Map {
 
 
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
-struct PathHead {
+struct PathNode {
     x: i64,
     y: i64,
     direction: Option<Dir>,
 }
 
-impl PathHead {
-    fn new(x: i64,
-        y: i64,
-        direction: Option<Dir>,
-    ) -> Self {
-        Self {x,
-            y,
-            direction,
-        }
+impl PathNode {
+    fn new(x: i64, y: i64, direction: Option<Dir>) -> Self {
+        Self {x, y, direction}
+    }
+}
+
+
+impl Display for PathNode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
     }
 }
 
@@ -138,6 +155,7 @@ enum Object {
     Empty,
     Start,
     End,
+    Path(Dir),
 }
 
 impl Object {
@@ -147,7 +165,7 @@ impl Object {
             '#' => Object::Wall,
             'S' => Object::Start,
             'E' => Object::End,
-            _ => panic!("Unknown character"),
+            v => Object::Path(Dir::new(v)),
         }
     }
 }
@@ -156,8 +174,9 @@ impl Object {
 fn main() {
     let args = Args::parse();
     let contents = fs::read_to_string(args.input).expect("Should have been able to read the file");
-    let (part1, part2) = read_contents(&contents, 100);
+    let (part1, part2) = read_contents(&contents, 100, 20);
     println!("Part 1 answer is {part1}");
+    // 976645 is too low
     println!("Part 2 answer is {part2}");
 }
 
@@ -184,15 +203,13 @@ fn read_map(cont: &str) -> Map {
 }
 
 
-fn read_contents(cont: &str, min_cheat: i64) -> (i64, i64) {
+fn read_contents(cont: &str, min_cheat: usize, cheat_time: usize) -> (usize, usize) {
     let map = read_map(cont);
     map.print_map();
 
-    let mut path: Vec<PathHead> = Vec::new();
+    let mut path: Vec<PathNode> = Vec::new();
 
-    let start = map.start;
-
-    let mut pos = PathHead::new(start.0, start.1, None);
+    let mut pos = PathNode::new(map.start.0, map.start.1, None);
     path.push(pos);
 
     let target = map.end;
@@ -205,38 +222,55 @@ fn read_contents(cont: &str, min_cheat: i64) -> (i64, i64) {
 
         for dir in Dir::iter() {
             let d = dir.get_dir();
-
-
             let x = (
                 pos.x + d.0,
                 pos.y + d.1,
             );
-            dbg!(&pos);
             if let Some(dd) = &pos.direction  {
                 if dd.opposite() == dir {
                     continue;
                 }
             }
             if map.is_empty(x.0, x.1) {
-                println!("At {}, {}, going {}", x.0, x.1, dir);
-                pos = PathHead::new(x.0, x.1, Some(dir));
+                // println!("At {}, {}, going {}", x.0, x.1, dir);
+                pos = PathNode::new(x.0, x.1, Some(dir));
                 path.push(pos);
             }
         }
     }
+    println!("Found path with {} steps ({} picoseconds)", path.len(), path.len() - 1);
     map.print_path(path.clone());
-    let cheats: usize = path.iter().enumerate().map(|(i, x)|
+    let part1 = path.iter().enumerate().map(|(i, x)|
         {
-            path.iter().enumerate().skip(i + 2 + min_cheat as usize).filter(|(j,y)| {
-                taxicab(x.x, x.y, y.x, y.y) == 2
+            path.iter().skip(i + 2 + min_cheat).filter(|y| {
+                taxicab(x,y) == 2
             }).count()
         }).sum();
 
-    (cheats as i64, 0)
+    let part2 = path.iter().enumerate().map(|(i, x)|
+        {
+            path.iter().enumerate().skip(i).filter(|(j,y)| {
+                let shortcut_distance = taxicab(x, y);
+                let path_distance = j - i;
+                if shortcut_distance > cheat_time as i64 {
+                    // Shortcut is too long
+                    return false;
+                }
+                let saved_distance = path_distance - shortcut_distance as usize;
+                if saved_distance < min_cheat {
+                    // Cheat is not good enough
+                    return false
+                }
+                //println!("Found cheat with {} steps from {} to {}, saving {} steps", shortcut_distance, x, y, saved_distance);
+                true
+            }).count()
+        }).sum();
+
+    (part1, part2)
 }
 
-fn taxicab(x1: i64, y1: i64, x2: i64, y2: i64) -> i64{
-    i64::abs(x1-x2) + i64::abs(y1-y2)
+fn taxicab(x1: &PathNode, x2: &PathNode) -> i64{
+    i64::abs(x1.x-x2.x) + i64::abs(x1.y-x2.y)
 }
 
 
@@ -263,8 +297,18 @@ mod tests {
 #...#...#...###
 ###############";
 
-        assert_eq!(read_contents(&a, 40).0, 2);
-        //assert_eq!(read_contents(&a).1, 81);
-    }
+        assert_eq!(read_contents(&a, 40, 20).0, 2);
 
+        //There are 3 cheats that save 76 picoseconds.
+        assert_eq!(read_contents(&a, 76, 20).1, 3);
+
+        //There are 4 cheats that save 74 picoseconds.
+        assert_eq!(read_contents(&a, 74, 20).1, 7);
+        
+        //There are 22 cheats that save 72 picoseconds.
+        assert_eq!(read_contents(&a, 72, 20).1, 7 + 22);
+
+        //There are 12 cheats that save 70 picoseconds.
+        assert_eq!(read_contents(&a, 70, 20).1, 7 + 22 + 12);
+    }
 }
