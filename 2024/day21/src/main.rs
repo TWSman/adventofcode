@@ -1,6 +1,7 @@
 use clap::Parser;
-use std::{fs, collections::BTreeMap};
+use std::fs;
 use itertools::Itertools;
+use memoize::memoize;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -11,7 +12,7 @@ struct Args {
 }
 
 
-#[derive(Clone, Copy, Debug)] 
+#[derive(Clone, Copy, Debug, Hash, Eq, PartialEq)] 
 enum KeypadType {
     Numeric,
     Directional,
@@ -44,7 +45,7 @@ fn button_lookup(c: char, keypad_type: KeypadType) -> (i64, i64) {
                 'A' => (2,0),
                 '>' => (2,1),
                 '#' => (0,0),
-                    _ => panic!(""),
+                val => panic!("Unknown character {}", val),
             }
         }
     }
@@ -56,66 +57,77 @@ fn main() {
     let (part1, part2) = read_contents(&contents);
 
     println!("Part 1 answer is {part1}");
-    assert!(part1 == 202648);
     println!("Part 2 answer is {part2}");
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
     let targets = cont.lines().map(|m| {
-        m.chars().collect::<Vec<char>>()
-    }).collect::<Vec<_>>();
+        m.chars().collect::<String>()
+    }).collect::<Vec<String>>();
 
     let tmp = targets.iter().map(|seq| {
-        (get_numeric(&seq), get_steps(&seq, 3), get_steps(&seq, 3))
+        (get_numeric(&seq), get_steps(&seq, 3), get_steps(&seq, 26))
     }).collect::<Vec<(i64,i64, i64)>>();
     let part1 = tmp.iter().map(|(x,y,_z)| x * y).sum();
     let part2 = tmp.iter().map(|(x,_y,z)| x * z).sum();
     (part1, part2)
 }
 
-fn seq_to_string(seq: &Vec<char>) -> String {
-    seq.iter().collect::<String>()
+
+// Calculate steps it takes to move from button X to Y
+fn get_jump(start: char, end: char, keypad_type: KeypadType) -> String {
+    let start_pos = button_lookup(start, keypad_type);
+    let end_pos = button_lookup(end, keypad_type);
+    let dx = end_pos.0 - start_pos.0;
+    let dy = end_pos.1 - start_pos.1;
+    let mut tmp_seq = get_tmp_seq(dx,dy);
+    tmp_seq.push('A');
+    tmp_seq
 }
 
-fn print_seq(seq: &Vec<char>) {
-    let str = seq_to_string(&seq);
-    println!("{}", str);
-}
-
-fn get_shortest(seq: &Vec<char>, keypad_type: KeypadType) -> Vec<char> {
-    let mut new_seq = Vec::new();
-    let mut pos = button_lookup('A', keypad_type);
-    let illegal_pos = button_lookup('#', keypad_type);
-    let mut _old_pos = 'A';
-    for i in 0..seq.len() {
-        let target = seq[i]; 
-        let target_pos = button_lookup(target, keypad_type);
-        let dx = target_pos.0 - pos.0;
-        let dy = target_pos.1 - pos.1;
-
-        let mut tmp_seq = get_tmp_seq(dx, dy);
-        tmp_seq.push('A');
-        for v in tmp_seq {
-            new_seq.push(v);
-        }
-        _old_pos = target;
-        pos = target_pos;
+#[memoize]
+fn get_jump_len(start: char, end: char, kb: KeypadType, rec: i64) -> i64 {
+    // Robot A starts from position 'start' and wants to go to 'end'
+    // How many steps does robot N take, to achieve this. Robot N is now starting from A
+    let jumps = get_jump(start, end, kb);     
+    if rec == 1 {
+        // Robot N is the one controlling A
+        return jumps.len() as i64
     }
-    
+    let mut shortest_sum: Option<i64> = None;
 
-    new_seq
-
+    for perm in jumps.chars().permutations(jumps.len()).unique() {
+        if !check_legal(&perm.iter().collect::<String>(), button_lookup(start, kb), button_lookup('#', kb)) {
+            continue;
+        }
+        if perm[perm.len() -1] != 'A' {
+            continue;
+        }
+        let mut sum = 0;
+        for j in 0..perm.len() {
+            let start_ = if j > 0 {
+                perm.get(j-1).unwrap()
+            } else {
+                &'A'
+            };
+            let end_ = perm.get(j).unwrap();
+            sum += get_jump_len(*start_, *end_, kb, rec-1)
+        }
+        if shortest_sum.is_none() {
+            shortest_sum = Some(sum);
+        } else if shortest_sum.unwrap() > sum {
+            shortest_sum = Some(sum);
+        }
+    }
+    shortest_sum.unwrap()
 }
 
-fn get_tmp_seq(dx: i64, dy: i64) -> Vec<char>{
+
+fn get_tmp_seq(dx: i64, dy: i64) -> String {
     let mut tmp_seq = Vec::new();
-    // Its best to go right + down, or up + left
-    // Not down + right or left + up
-    //
-    // right/up and down/left, order does not matter
-    //
-    // going right, horizontal first
+    // Usually Its best to go right + down, or up + left
     if dx > 0 {
+        // Going right, horizontal first
         for _ in 0..dx {
             // dx steps right
             tmp_seq.push('>');
@@ -132,6 +144,7 @@ fn get_tmp_seq(dx: i64, dy: i64) -> Vec<char>{
             }
         }
     } else {
+        // Going left, horizontal first
         if dy > 0 {
             for _ in 0..dy {
                 // dy steps down
@@ -149,42 +162,35 @@ fn get_tmp_seq(dx: i64, dy: i64) -> Vec<char>{
         }
     }
 
-    tmp_seq
+    tmp_seq.iter().collect::<String>()
 }
 
-fn get_shortest_with_options(seq: &Vec<char>, keypad_type: KeypadType) -> Vec<Vec<char>> {
-    let mut new_seqs: Vec<Vec<char>> = Vec::new();
+fn get_shortest_with_options(seq: &String, keypad_type: KeypadType) -> Vec<String> {
+    let mut new_seqs: Vec<String> = Vec::new();
     let mut pos = button_lookup('A', keypad_type);
     let illegal_pos = button_lookup('#', keypad_type);
-    let mut old_pos = 'A';
-    new_seqs.push(Vec::new());
+    new_seqs.push(String::new());
     for i in 0..seq.len() {
         let n_start = new_seqs[0].len();
-        let target = seq[i]; 
+        let target = seq.chars().nth(i).unwrap(); 
         let target_pos = button_lookup(target, keypad_type);
-        let mut nowleft = true;
-        if pos.1 == illegal_pos.1 { // We are on the same row
-            if target_pos.0 == illegal_pos.0 { // We are heading to the illegal position
-                nowleft = true;
-            }
-        } 
         let dx = target_pos.0 - pos.0;
         let dy = target_pos.1 - pos.1;
 
         let tmp_seq = get_tmp_seq(dx, dy);
         //println!("Going from {} to {}", old_pos, target);
         if tmp_seq.len() > 1 {
-            let mut x: Vec<Vec<char>> = Vec::new();
+            let mut x: Vec<String> = Vec::new();
             // Check each permutation
-            for perm in tmp_seq.iter().permutations(tmp_seq.len()).unique() {
-                let p2 = &perm.iter().map(|c| **c).collect::<Vec<char>>();
+            for perm in tmp_seq.chars().permutations(tmp_seq.len()).unique() {
+                let p2 = &perm.iter().copied().collect::<String>();
                 // If this permutation is legal
                 if check_legal(p2, pos, illegal_pos) {
                     // Copy all old sequences
                     for vec in &new_seqs {
                         let mut xx = vec.clone();
                         for s in &perm {
-                            xx.push(**s);
+                            xx.push(*s);
                         }
                         xx.push('A');
                         x.push(xx);
@@ -194,14 +200,13 @@ fn get_shortest_with_options(seq: &Vec<char>, keypad_type: KeypadType) -> Vec<Ve
             new_seqs = x;
         } else {
             for new_seq in new_seqs.iter_mut() {
-                for v in &tmp_seq {
-                    new_seq.push(*v);
+                for v in tmp_seq.chars() {
+                    new_seq.push(v);
                 }
                 new_seq.push('A');
                 assert!(new_seq.len() == 1+ n_start + tmp_seq.len());
             }
         }
-        old_pos = target;
         pos = target_pos;
     }
     let n = new_seqs.first().unwrap().len();
@@ -211,9 +216,9 @@ fn get_shortest_with_options(seq: &Vec<char>, keypad_type: KeypadType) -> Vec<Ve
     new_seqs
 }
 
-fn check_legal(seq: &Vec<char>, start: (i64, i64), illegal: (i64, i64)) -> bool {
+fn check_legal(seq: &String, start: (i64, i64), illegal: (i64, i64)) -> bool {
     let mut pos = start;
-    for s in seq {
+    for s in seq.chars() {
         pos = match s {
             '>' => (pos.0 + 1, pos.1),
             '<' => (pos.0 - 1, pos.1),
@@ -226,36 +231,38 @@ fn check_legal(seq: &Vec<char>, start: (i64, i64), illegal: (i64, i64)) -> bool 
             return false;
         }
     }
-    return true
+    true
 }
 
-fn get_steps(seq: &Vec<char>, robot_count: i64) -> i64 {
-    print_seq(&seq);
-    let mut shortest = 999;
+
+fn get_steps(seq: &String, robot_count: i64) -> i64 {
+    println!("{}", seq);
+    let mut shortest = None;
     let options = get_shortest_with_options(seq, KeypadType::Numeric);// Sequence that robot B does to move C
     println!("Found {} options", options.len());
     for opt in options {
-        let mut new_seq = opt.clone();
-        let mut i = 1;
-        loop {
-            dbg!(&i);
-            i += 1;
-            new_seq = get_shortest(&new_seq, KeypadType::Directional);
-            if i == robot_count {
-                println!("{} steps for {}", new_seq.len(), seq_to_string(&opt));
-                if new_seq.len() < shortest {
-                    shortest = new_seq.len();
-                }
-                break;
-            }
+        let mut steps = 0;
+        for j in 0..opt.len() {
+            let start_ = if j > 0 {
+                opt.chars().nth(j-1).unwrap()
+            } else {
+                'A'
+            };
+            let end_ = opt.chars().nth(j).unwrap();
+            steps += get_jump_len(start_, end_, KeypadType::Directional, robot_count - 1)
+        }
+        if shortest.is_none() {
+            shortest = Some(steps);
+        } else if shortest.unwrap() > steps {
+            shortest = Some(steps);
         }
     }
-    println!("Found {} steps for {}", shortest, &seq.iter().collect::<String>());
-    shortest as i64
+    println!("Found {} steps for {}", shortest.unwrap(), &seq);
+    shortest.unwrap()
 }
 
-fn get_numeric(input: &Vec<char>) -> i64 {
-    input.iter().filter(|c| c.is_digit(10)).collect::<String>().parse().unwrap()
+fn get_numeric(input: &str) -> i64 {
+    input.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap()
 }
 
 #[cfg(test)]
@@ -274,65 +281,36 @@ mod tests {
 
     }
 
-    #[test]
-    fn shortest() {
-
-        let input = vec!['0', '2', '9', 'A'];
-        let expect = vec!['<', 'A', '^', 'A', '>', '^', '^', 'A', 'v', 'v', 'v', 'A'];
-        assert_eq!(get_shortest(&input, KeypadType::Numeric), expect);
-
-        let expect_next = String::from("v<<A>>^A<A>AvA<^AA>A<vAAA>^A").chars().collect::<Vec<char>>();
-        let second = get_shortest(&expect, KeypadType::Directional);
-        assert_eq!(expect_next.len(), second.len());
-        
-        let expect_third = String::from("<vA<AA>>^AvAA<^A>A<v<A>>^AvA^A<vA>^A<v<A>^A>AAvA^A<v<A>A>^AAAvA<^A>A").chars().collect::<Vec<char>>();
-        let third = get_shortest(&expect_next, KeypadType::Directional);
-        assert_eq!(third.len(), expect_third.len());
-
-
-        // Fiffth example
-        //
-        // Expected sequences should be:
-        // 379A
-        // ^A<<^^A>>AvvvA
-        // <A>Av<<AA>^AA>AvAA^A<vAAA>^A
-        // <v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A
-
-        let input5 = vec!['3', '7', '9', 'A']; // Given input
-        let expect5c = String::from("^A<<^^A>>AvvvA").chars().collect::<Vec<char>>(); // Result in
-                                                                                      // example
-
-        let expect5b  = String::from("<A>Av<<AA>^AA>AvAA^A<vAAA>^A").chars().collect::<Vec<char>>(); // Result in example
-
-        let res2 = get_shortest(&expect5c, KeypadType::Directional);
-        //assert_eq!(res2, expect5b);
-
-        let expect5a = String::from("<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A").chars().collect::<Vec<char>>(); // result in example
-        let res3 = get_shortest(&expect5b, KeypadType::Directional);
-        let res31 = get_shortest(&res2, KeypadType::Directional);
-        assert_eq!(res3.len(), expect5a.len());
-        assert_eq!(res3.len(), res31.len());
-    }
 
     #[test]
     fn steps() {
 
-        let input = vec!['0', '2', '9', 'A'];
+        let input = String::from("029A");
         assert_eq!(get_steps(&input, 3), 68);
 
-        let inputb = vec!['9', '8', '0', 'A'];
+        let inputb = String::from("980A");
         assert_eq!(get_steps(&inputb, 3), 60);
 
-        let inputc = vec!['1', '7', '9', 'A'];
+        let inputc= String::from("179A");
         assert_eq!(get_steps(&inputc, 3), 68);
 
-        let input4 = vec!['4', '5', '6', 'A'];
+        let input4= String::from("456A");
         assert_eq!(get_steps(&input4, 3), 64);
 
-        let expect5 = String::from("<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A").chars().collect::<Vec<char>>();
-        print_seq(&expect5);
-        let input5 = vec!['3', '7', '9', 'A'];
+        let expect5 = String::from("<v<A>>^AvA^A<vA<AA>>^AAvA<^A>AAvA^A<vA>^AA<A>A<v<A>A>^AAAvA<^A>A");
+
+        let input5 = String::from("379A");
         assert_eq!(get_steps(&input5, 3), 64);
+    }
+
+    #[test]
+    fn jumps() {
+        let kb = KeypadType::Directional;
+        assert_eq!(get_jump_len('<', '>', kb, 1), 3);
+        assert_eq!(get_jump_len('<', '<', kb, 1), 1);
+        assert_eq!(get_jump_len('<', 'A', kb, 1), 4);
+
+        assert_eq!(get_jump_len('A', '^', kb, 2), 8);
     }
 }
 
