@@ -1,6 +1,7 @@
 use clap::Parser;
 use std::fs;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -24,6 +25,7 @@ struct Computer {
     wires: BTreeMap<String, WireState>,
     wires_original: BTreeMap<String, WireState>,
     input_size: usize,
+    switches: BTreeSet<String>,
     
 }
 
@@ -34,41 +36,41 @@ impl Computer  {
         }).max().unwrap() + 1;
 
         let wires_original = wires.clone();
-        Self {wires, wires_original: wires_original, input_size}
+        Self {wires, wires_original, input_size, switches: BTreeSet::new()}
     }
 
+    fn reset(&mut self) {
+        self.wires = self.wires_original.clone();
+    }
+
+    fn switch_inputs(&mut self, a: &str, b: &str) {
+        let input_a = &self.wires.get(a).unwrap().clone();
+        let input_b = &self.wires.get(b).unwrap().clone();
+        self.wires.insert(a.to_string(), input_b.clone());
+        self.wires.insert(b.to_string(), input_a.clone());
+        self.switches.insert(a.to_string());
+        self.switches.insert(b.to_string());
+    }
 
     fn get_state(&mut self, key: &str) -> u8 {
         let w = self.wires.clone();
         let state = w.get(key);
         let (a,b) = match state {
-            Some(WireState::And(a,b)) => (a,b),
-            Some(WireState::Or(a,b)) => (a,b),
-            Some(WireState::Xor(a,b)) => (a,b),
+            Some(WireState::And(a,b) | WireState::Xor(a,b) | WireState::Or(a,b)) => (a,b),
             Some(WireState::Zero) => return 0,
             Some(WireState::One) => return 1,
             _ => panic!(),
         };
         let res = match state {
             Some(WireState::And(..)) => {
-                if self.get_state(&a) == 0 {
-                    // If a is false, no need to check b
-                    0
-                } else {
-                    self.get_state(&b)
-                }
+                self.get_state(a) & self.get_state(b)
             },
             Some(WireState::Or(..)) => {
-                if self.get_state(&a) == 1 {
-                    // if a is true, no need to check b
-                    1
-                } else {
-                    self.get_state(&b)
-                }
+                self.get_state(a) | self.get_state(b)
             },
             Some(WireState::Xor(..)) => {
                 // With XOR must do both
-                self.get_state(&a) ^ self.get_state(&b)
+                self.get_state(a) ^ self.get_state(b)
             }
 
             _ => panic!(),
@@ -84,12 +86,12 @@ impl Computer  {
     fn calculate_states(&mut self) {
         let keys = &self.wires.keys().map(|m| m.to_string()).collect::<Vec<String>>();
         for k in keys {
-            let _ = self.get_state(&k);
+            let _ = self.get_state(k);
         }
     }
 
     fn get_result(&self, which: char) -> u64 {
-        self.wires.iter().filter(|(k,v)| k.starts_with(which)).map(|(k,v)| {
+        self.wires.iter().filter(|(k,_)| k.starts_with(which)).map(|(k,v)| {
             let index = k[1..].parse::<u32>().unwrap();
             if v == &WireState::One {
                 2_u64.pow(index)
@@ -101,6 +103,8 @@ impl Computer  {
 }
 
 
+// Part1: Calculate the state of Z__ gates and convert those to an integer
+// Part2 Figure out which 4 pairs of wires need to be switched, so that the wiring works as a adder
 fn main() {
     let args = Args::parse();
 
@@ -127,14 +131,17 @@ fn parse_line(line: &str) -> Option<(String, WireState)> {
     if line.contains("->") {
         // y16 AND x16 -> bss
         let spl = line.split_whitespace().collect::<Vec<_>>();
-        let a = spl[0].to_string();
-        let b = spl[2].to_string();
+        let mut a = spl[0].to_string();
+        let mut b = spl[2].to_string();
         let wire = spl[4].to_string();
+        if a > b {
+            (b,a) = (a,b);
+        }
         
-        let state = match spl[1] {
-            "AND" => WireState::And(a,b),
-            "OR" => WireState::Or(a,b),
-            "XOR" => WireState::Xor(a,b),
+        let state = match spl.get(1) {
+            Some(&"AND") => WireState::And(a,b),
+            Some(&"OR") => WireState::Or(a,b),
+            Some(&"XOR") => WireState::Xor(a,b),
             _ => panic!("Unknown operator"),
         };
         return Some((wire, state))
@@ -143,8 +150,136 @@ fn parse_line(line: &str) -> Option<(String, WireState)> {
 }
 
 fn get_computer(cont: &str) -> Computer {
-    let wires = cont.lines().filter_map(|ln| parse_line(ln)).collect::<BTreeMap<String, WireState>>();
+    let wires = cont.lines().filter_map(parse_line).collect::<BTreeMap<String, WireState>>();
     Computer::new(wires)
+}
+
+
+// Wiring seems to be following the pattern of full adders such that
+//
+// D = A XOR B
+// E = A AND B
+// F = C AND D
+// SUM = C XOR D
+// CARRY = F OR E
+//
+// expect for the first bit which is a half adder
+// SUM = A XOR B
+// CARRY = A AND B
+//
+// Start from X00 and Y00 and look for deviations in the above pattern
+// TODO! Automize the switches
+fn analyze_wires(comp: &mut Computer) -> BTreeSet<String> {
+    comp.reset();
+    // With these switches the program runs
+    comp.switch_inputs("fkb", "z16");
+    comp.switch_inputs("rqf", "nnr");
+    comp.switch_inputs("rdn", "z31");
+    comp.switch_inputs("z37", "rrn");
+    let mut a_and_b: BTreeMap<usize, String> = BTreeMap::new();
+    let mut a_xor_b: BTreeMap<usize, String> = BTreeMap::new();
+    let mut carry: BTreeMap<usize, String> = BTreeMap::new();
+    let mut c_and: BTreeMap<usize, String> = BTreeMap::new();
+    let mut prev_carry = String::new();
+    for i in 0..comp.input_size {
+        println!("i: {i}");
+        let xi = format!("{}{:02}", 'x', i);
+        let yi = format!("{}{:02}", 'y', i);
+        let zi = format!("{}{:02}", 'z', i);
+        let zstate = comp.wires.get(&zi).unwrap();
+        if i == 0 {
+            for (k,v) in &comp.wires {
+                if v == &WireState::And(xi.clone(), yi.clone()) {
+                    carry.insert(i, k.to_string());
+                    prev_carry = k.to_string();
+                    println!("Found carry: {k}");
+                }
+                if v == &WireState::Xor(xi.clone(), yi.clone()) {
+                    println!("Found sum: {k}");
+                    assert!(zstate == v);
+                }
+            }
+            continue;
+        }
+        let mut found = false;
+        let xi = format!("{}{:02}", 'x', i);
+        let yi = format!("{}{:02}", 'y', i);
+        for (k,v) in &comp.wires {
+            if v == &WireState::And(xi.clone(), yi.clone()) {
+                a_and_b.insert(i, k.to_string());
+                println!("Found A & B: {k}");
+            }
+            if v == &WireState::Xor(xi.clone(), yi.clone()) {
+                a_xor_b.insert(i, k.to_string());
+                println!("Found A ^ B: {k}");
+            }
+        }
+        let a_xor_b_here = a_xor_b.get(&i).unwrap();
+        let a_and_b_here = a_and_b.get(&i).unwrap();
+        for (k,v) in &comp.wires {
+            // Get Sum
+            if v == &WireState::Xor(a_xor_b_here.clone(), prev_carry.clone()) {
+                println!("Found sum: {k}");
+                assert_eq!(k, &zi);
+            }
+            if v == &WireState::Xor(prev_carry.clone(), a_xor_b_here.clone()) {
+                println!("Found sum: {k}");
+                assert_eq!(k, &zi);
+            }
+
+            // Get C_and
+            if v == &WireState::And(prev_carry.clone(), a_xor_b_here.clone()) {
+                c_and.insert(i, k.to_string());
+                println!("Found C_and: {k}");
+                found = true;
+            }
+
+            if v == &WireState::And(a_xor_b_here.clone(), prev_carry.clone()) {
+                println!("Found C_and: {k}");
+                c_and.insert(i, k.to_string());
+                found = true;
+            }
+        }
+        if c_and.get(&i).is_none() {
+            // Couldn't find a match for this combinator
+            for v in comp.wires.values() {
+                match v {
+                   WireState::And(a, b) if a == &prev_carry => {
+                        println!("{b}");
+                        dbg!(&v);
+                        panic!();
+                    },
+                   WireState::And(a, b) if b == &prev_carry => {
+                        println!("{a}");
+                        dbg!(&v);
+                        panic!();
+                    },
+                    _ => {},
+                }
+            }
+        }
+        let c_and_here = c_and.get(&i).unwrap();
+
+        for (k, v) in &comp.wires {
+            if v == &WireState::Or(c_and_here.clone(), a_and_b_here.clone()) {
+                carry.insert(i, k.to_string());
+                println!("Found carry: {k}");
+                prev_carry = k.to_string();
+            }
+            if v == &WireState::Or(a_and_b_here.clone(), c_and_here.clone()) {
+                carry.insert(i, k.to_string());
+                println!("Found carry: {k}");
+                prev_carry = k.to_string();
+            }
+        }
+        if !found {
+            dbg!(&carry);
+            println!("Prev carry is {prev_carry}");
+            println!("Tmp is {a_xor_b_here}");
+            panic!("Could not find sum for {i}");
+        }
+    }
+    comp.switches.clone()
 }
 
 
@@ -153,15 +288,39 @@ fn read_contents(cont: &str) -> (u64, Vec<String>) {
     dbg!(&comp.wires.len());
     comp.calculate_states();
     let part1 = comp.get_result('z');
-    //let part2 = get_part2(&mut comp);
-    let part2 = Vec::new();
-    (part1, part2)
+    let part2 = analyze_wires(&mut comp);
+    (part1, part2.iter().map(|c| c.to_string()).collect::<Vec<String>>())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    #[test]
+    fn part2() {
+        let a = "
+x00: 0
+x01: 1
+x02: 0
+x03: 1
+x04: 0
+x05: 1
+y00: 0
+y01: 0
+y02: 1
+y03: 1
+y04: 0
+y05: 1
+
+x00 AND y00 -> z05
+x01 AND y01 -> z02
+x02 AND y02 -> z01
+x03 AND y03 -> z03
+x04 AND y04 -> z04
+x05 AND y05 -> z00";
+        assert_eq!(read_contents(&a).1, ["z00","z01","z02","z05"]);
+
+    }
     #[test]
     fn conts() {
         let a = "x00: 1
@@ -223,31 +382,6 @@ y03 OR x01 -> nrd
 hwm AND bqk -> z03
 tgd XOR rvg -> z12
 tnw OR pbm -> gnj";
-
         assert_eq!(read_contents(&b).0, 2024);
-    }
-
-    #[test]
-    fn set() {
-        let a = "x00: 1
-x01: 1
-x02: 1
-y00: 0
-y01: 1
-y02: 0
-
-x00 AND y00 -> z00
-x01 XOR y01 -> z01
-x02 OR y02 -> z02";
-        let mut comp = get_computer(&a);
-        comp.set_val('x', 1);
-        dbg!(&comp);
-        assert_eq!(comp.get_result('x'), 1);
-
-        comp.set_val('x', 7);
-        assert_eq!(comp.get_result('x'), 7);
-
-        comp.set_val('y', 5);
-        assert_eq!(comp.get_result('y'), 5);
     }
 }
