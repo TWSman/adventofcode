@@ -14,6 +14,25 @@ pub enum Dir {
     W,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter)]
+pub enum Diag {
+    NE,
+    SE,
+    SW,
+    NW,
+}
+
+impl Diag {
+    pub const fn get_dir(self) -> (i64, i64) {
+        match self {
+            Self::NE => (1, -1),
+            Self::SE => (1, 1),
+            Self::SW => (-1, 1),
+            Self::NW => (-1, -1),
+        }
+    }
+}
+
 
 impl Display for Dir{
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
