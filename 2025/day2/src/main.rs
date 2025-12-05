@@ -1,6 +1,3 @@
-// Target: For each list of numbers define if its truly decreasing or increasing
-// And check that successive differences are 1 or 2
-
 use clap::Parser;
 use std::fs;
 
@@ -28,53 +25,80 @@ struct Range {
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let res2: i64 = 0;
     let cont = cont.replace("\n","");
     let ranges = cont.split(',').map(|m| {
         let parts: Vec<&str> = m.split('-').collect();
-        dbg!(&parts);
         Range {
             start: parts[0].parse::<i64>().unwrap(),
             end: parts[1].parse::<i64>().unwrap(),
         }
     }).collect::<Vec<Range>>();
-    println!("HEY");
-    dbg!(&ranges);
-    let res1 = ranges.iter().map(|r| get_sum(r, 2)).sum();
-    let res2 = ranges.iter().map(|r| get_sums(r)).sum();
+    let res1 = ranges.iter().map(get_part1).sum();
+    let res2 = ranges.iter().map(get_part2).sum();
     (res1, res2)
 }
 
-fn get_sums(input: &Range) -> i64 {
-    let size_end = input.end.to_string().len();
-    (2..=size_end).map(|m| get_sum(input, m as usize)).sum()
+fn get_part2(input: &Range) -> i64 {
+    // This isn't very efficient but it works. Runs in ~2 seconds
+    let start = input.start;
+    let end = input.end;
+    let mut sum = 0;
+
+    for i in start..=end {
+        for split_count in 2..=(i.to_string().len()) {
+            if check_valid(i, split_count) {
+                // This is a valid id.
+                // No need to check other split counts
+                sum += i;
+                break;
+            }
+        }
+    }
+    sum
 }
 
-fn get_sum(input: &Range, split_count: usize) -> i64 {
+fn check_valid(input: i64, split_count: usize) -> bool {
+    // Checks if the input can be formed by repeating the same string split_count times
+    let b = input.to_string();
+    let n = b.len();
+    if !n.is_multiple_of(split_count) {
+        return false;
+    }
+    let split_len = n / split_count;
+    let a = b.split_at(split_len).0;
+
+    if a.repeat(split_count) == b {
+        return true;
+    }
+    // Otherwise return false
+    false
+}
+
+fn get_part1(input: &Range) -> i64 {
+    // Calculate the sum of all numbers in the range that can be formed by repeating the same
+    // string twice (e.g. 1212, 5656, 9999)
     let mut start = input.start;
     let mut end = input.end;
     let mut size_start = start.to_string().len();
     let mut size_end = input.end.to_string().len();
-    if size_start % split_count != 0 && size_end == size_start {
+    if !size_start.is_multiple_of(2) && size_end == size_start {
         // Odd sized strings cant be made up of repeating the same thing twice
         return 0;
     }
-    while size_start % split_count != 0 {
-        // Round start upwards
-        //start = (start / 10_i64.pow((size_start / 2) as u32) + 1) * 10_i64.pow((size_start / 2) as u32);
+    if !size_start.is_multiple_of(2) {
         start = round_up(start);
         size_start = start.to_string().len();
     }
-    while size_end % split_count != 0 {
+    if !size_end.is_multiple_of(2) {
         end = round_down(end);
         size_end = end.to_string().len();
     }
-    assert_eq!(size_start % split_count, 0);
+    assert_eq!(size_start%2, 0);
     assert_eq!(size_start, size_end);
 
     let start_binding = start.to_string();
-    let start_first = start_binding.split_at(size_start / split_count).0.parse::<i64>().unwrap();
-    let start_second = start_binding.split_at(size_start / split_count).1.parse::<i64>().unwrap();
+    let start_first = start_binding.split_at(size_start/2).0.parse::<i64>().unwrap();
+    let start_second = start_binding.split_at(size_start/2).1.parse::<i64>().unwrap();
 
     let start_candidate = if start_first >= start_second {
         start_first
@@ -83,8 +107,8 @@ fn get_sum(input: &Range, split_count: usize) -> i64 {
     };
 
     let end_binding = end.to_string();
-    let end_first = end_binding.split_at(size_end / split_count).0.parse::<i64>().unwrap();
-    let end_second = end_binding.split_at(size_end / split_count).1.parse::<i64>().unwrap();
+    let end_first = end_binding.split_at(size_end/2).0.parse::<i64>().unwrap();
+    let end_second = end_binding.split_at(size_end/2).1.parse::<i64>().unwrap();
 
 
     let end_candidate = if end_first <= end_second {
@@ -94,10 +118,7 @@ fn get_sum(input: &Range, split_count: usize) -> i64 {
         // For example 111 109, final option will be 110 110
         end_first - 1
     };
-    dbg!(start_candidate);
-    dbg!(end_candidate);
-    let res = (start_candidate..=end_candidate).map(|m| m.to_string().repeat(split_count).parse::<i64>().unwrap()).sum();
-    res
+    (start_candidate..=end_candidate).map(|m| m.to_string().repeat(2).parse::<i64>().unwrap()).sum()
 }
 
 fn round_up(input: i64) -> i64 {
@@ -130,6 +151,29 @@ mod tests {
         assert_eq!(read_contents("95-115").0, 99);
         let a = "11-22,95-115,998-1012,1188511880-1188511890,222220-222224,1698522-1698528,446443-446449,38593856-38593862,565653-565659,824824821-824824827,2121212118-2121212124";
         assert_eq!(read_contents(&a).0, 1227775554);
+    }
+    #[test]
+    fn valid() {
+        assert!(check_valid(111, 3));
+        // Doesn't divide
+        assert!(!check_valid(111, 2));
+
+        assert!(!check_valid(121, 3));
+    }
+
+    #[test]
+    fn part2() {
+        assert_eq!(read_contents("11-22").1, 33);
+        assert_eq!(read_contents("95-115").1, 99+111);
+        
+        assert_eq!(get_part2(&Range{start: 998, end: 1012}), 999 + 1010);
+
+        assert_eq!(read_contents("998-1012").1, 999+1010);
+        assert_eq!(read_contents("1188511880-1188511890").1, 1188511885);
+        assert_eq!(read_contents("222220-222224").1, 222222);
+
+        let a = "11-22,95-115,998-1012,1188511880-1188511890,222220-222224,1698522-1698528,446443-446449,38593856-38593862,565653-565659,824824821-824824827,2121212118-2121212124";
         assert_eq!(read_contents(&a).1, 4174379265);
     }
 }
+
