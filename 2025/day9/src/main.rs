@@ -129,6 +129,7 @@ fn get_part2(tiles: &[Coord]) -> i64 {
                 continue;
             }
             println!("Found new max ({}, {}) (id {}) and  ({}, {}) (id {}) with area {}", a.x, a.y, i, b.x, b.y, j, candidate_area);
+            // Update the largest area
             largest_area = candidate_area;
         }
     }
@@ -159,6 +160,7 @@ fn check_pair(a: &Coord, b: &Coord, segments: &Vec<(Coord, Coord)>) -> bool {
             continue;
         }
         // Otherwise the segment does intersect the rectangle
+        // This means that a and b do not make valid rectangle
         return true;
     }
     false
@@ -204,6 +206,5 @@ mod tests {
         let tiles = read_tiles(&a);
         assert_eq!(get_part2(&tiles), 24);
     }
-
 }
 
