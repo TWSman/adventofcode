@@ -61,6 +61,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
 
 fn get_part2(tiles: &Vec<Coord>) -> i64 {
     let mut grid: BTreeSet<(i64,i64)> = BTreeSet::new();
+    let mut tile_loop: Vec<(i64,i64)> = Vec::new();
     let n_tiles = tiles.len();
     for i in 0..n_tiles {
         let (a, b);
@@ -76,6 +77,7 @@ fn get_part2(tiles: &Vec<Coord>) -> i64 {
             let end = a.y.max(b.y);
             for y in start..=end {
                 grid.insert((a.x, y));
+                tile_loop.push((a.x,y));
             }
         }
         else if a.y == b.y {
@@ -83,6 +85,7 @@ fn get_part2(tiles: &Vec<Coord>) -> i64 {
             let end = a.x.max(b.x);
             for x in start..=end {
                 grid.insert((x, a.y));
+                tile_loop.push((x,a.y));
             }
         } else {
             panic!("Should not happen");
@@ -91,7 +94,7 @@ fn get_part2(tiles: &Vec<Coord>) -> i64 {
     dbg!(&grid.len());
     dbg!(&grid);
 
-    // TODO MISSING The inside of the loop
+    // TODO Fill the inside of the loop
     let mut current_max: i64 = 0;
     for (i,a) in tiles.iter().enumerate() {
         for (j, b) in tiles.iter().enumerate() {
