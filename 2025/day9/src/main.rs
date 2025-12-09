@@ -61,13 +61,13 @@ fn print_grid(tiles: &BTreeSet<(i64,i64)>, red_tiles: &[Coord], max_x: i64, max_
     let ny = usize::try_from(max_y).expect("Should work") + 2;
     let mut grid: Vec<Vec<char>> = vec![vec!['.'; nx]; ny];
     for x in 0..nx {
-        for y in 0..ny {
+        for y in 1..=ny {
             if (a.is_some() && x == a.unwrap().x.try_into().unwrap() && y == a.unwrap().y.try_into().unwrap()) || (b.is_some() && x == b.unwrap().x.try_into().unwrap() && y == b.unwrap().y.try_into().unwrap()) {
-                grid[y][x] = 'O';
+                grid[ny-y][x] = 'O';
             } else if red_tiles.contains(&Coord {x: x.try_into().unwrap(), y: y.try_into().unwrap()}) {
-                grid[y][x] = 'R';
+                grid[ny-y][x] = 'R';
             } else if tiles.contains(&(x as i64, y as i64)) {
-                grid[y][x] = '#';
+                grid[ny-y][x] = '#';
             }
         }
     }
@@ -81,18 +81,18 @@ fn print_loop(tile_loop: &BTreeMap<(i64,i64), Dir>, red_tiles: &[Coord], max_x: 
     let ny = usize::try_from(max_y).expect("Should work") + 2;
     let mut grid: Vec<Vec<char>> = vec![vec!['.'; nx]; ny];
     for x in 0..nx {
-        for y in 0..ny {
+        for y in 1..=ny {
             if (a.is_some() && x == a.unwrap().x.try_into().unwrap() && y == a.unwrap().y.try_into().unwrap()) || (b.is_some() && x == b.unwrap().x.try_into().unwrap() && y == b.unwrap().y.try_into().unwrap()) {
-                grid[y][x] = 'O';
+                grid[ny-y][x] = 'O';
             } else if tile_loop.contains_key(&(x as i64, y as i64)) {
                 match tile_loop.get(&(x as i64, y as i64)) {
                     Some(d) => {
-                        grid[y][x] = d.get_char();
+                        grid[ny-y][x] = d.get_char();
                     },
                     None => panic!("Should not happen"),
                 }
             } else if red_tiles.contains(&Coord {x: x.try_into().unwrap(), y: y.try_into().unwrap()}) {
-                grid[y][x] = 'R';
+                grid[ny-y][x] = 'R';
             }
         }
     }
