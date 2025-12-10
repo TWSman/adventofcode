@@ -93,18 +93,42 @@ impl Machine {
                 }
             }
         }
-        dbg!(&target_lights);
-        dbg!(&buttons);
-        dbg!(&joltages);
+        //dbg!(&target_lights);
+        //dbg!(&buttons);
+        //dbg!(&joltages);
         Self {n_lights: n_lights, target_lights: target_lights.unwrap(), buttons: buttons, joltages: joltages.unwrap()}
     }
 
     fn get_part1(&self) -> i32 {
-        let n = 2_i32.pow(self.n_lights) {
+        let n = 2_i32.pow(self.buttons.len() as u32);
+        // outer loop tests different options
+        println!("Testing machine with target {:b} and {} buttons", self.target_lights, self.buttons.len());
+        (0..n).map(|i_opt| {
+            //println!("Testing option {} {:b}", i_opt,i_opt);
             let mut s = 0;
-            for i in 0..n {
+            let mut c = 0;
+            for i_button in 0..(self.buttons.len()){
+                // Check if bit at index 'i_button' is set
+                if ((i_opt >> i_button) & 1) == 1 {
+                    //println!("  Pressing button {}", i_button);
+                    c += 1;
+                    s ^= self.buttons[i_button].changes;
+                }
+                else {
+                    //println!("  Do not p button {}", i_button);
+                }
             }
-        }
+            if s == self.target_lights {
+                //println!("Found match with option {:b}", i);
+                c
+            } else {
+                999
+            }
+        }).min().unwrap()
+    }
+
+    fn get_part2(&self) -> i32 {
+        0
     }
 }
 
@@ -113,7 +137,8 @@ fn read_contents(cont: &str) -> (i64, i64) {
     let machines: Vec<Machine> = cont.lines().map(|ln| {
         Machine::from_str(ln)
     }).collect();
-    let part1 = 0;
+    dbg!(&machines);
+    let part1 = machines.iter().map(|m| m.get_part1() as i64).sum();
     let part2 = 0;
     (part1, part2)
 }
@@ -125,10 +150,27 @@ mod tests {
 
     #[test]
     fn part1() {
+
+        let m = Machine::from_str("[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}");
+        assert_eq!(m.get_part1(), 2);
+
         let a="[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
         [...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
         [.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}";
         assert_eq!(read_contents(&a).0, 7);
+    }
+
+    #[test]
+    fn part2() {
+
+        let m = Machine::from_str("[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}");
+        dbg!(&m);
+        assert_eq!(m.get_part2(), 10);
+
+        let a="[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
+        [...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
+        [.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}";
+        assert_eq!(read_contents(&a).1, 33);
     }
 
 }
