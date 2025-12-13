@@ -2,9 +2,7 @@ use clap::Parser;
 use std::fs;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::cmp::Ordering;
 use std::fmt::Display;
-use core::fmt;
 use regex::Regex;
 use priority_queue::PriorityQueue;
 extern crate rayon;
@@ -64,7 +62,8 @@ impl Button {
         }
         Self {changes: a, change_sum: c}
     }
-    fn get_change_map(&self, n:usize) -> Vec<i32> {
+    fn vector(&self, n:usize) -> Vec<i32> {
+        // Get the activations as a vector
         let mut vec = Vec::new();
 
         let mut div = self.changes;
@@ -82,16 +81,16 @@ impl Button {
     }
 
     fn get_expected_count(&self, current: &Vec<i32>, target: &Vec<i32>) -> i32 {
-        self.get_change_vector().iter().map(|i|{
+        self.get_changes().iter().map(|i|{
             target[*i] - current[*i]
         }).min().unwrap_or(0)
     }
 
-    fn get_change_vector(&self) -> Vec<usize> {
+    fn get_changes(&self) -> Vec<usize> {
+        // Return the list of indices of lights/joltages this button affects
         let mut vec = Vec::new();
 
         let mut i = 0;
-
         let mut div = self.changes;
         let mut m;
         while div > 0 {
@@ -118,6 +117,7 @@ struct Machine {
     target_lights: i32, // Target as binary mask
     buttons: Vec<Button>,
     joltages: Vec<i32>,
+    memory: BTreeMap<Vec<i32>, i32>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -128,6 +128,7 @@ enum Comparison {
 }
 
 fn add_to_vector(vec: &Vec<i32>, ind: usize, val: i32) -> Vec<i32> {
+    // Add scalar to vector at given index
     vec.iter().enumerate().map(|(i,v)| {
         if i == ind {
             v + val
@@ -138,18 +139,17 @@ fn add_to_vector(vec: &Vec<i32>, ind: usize, val: i32) -> Vec<i32> {
 }
 
 fn add_vectors(vec1: &Vec<i32>, vec2: &Vec<i32>) -> Vec<i32> {
+    // Add two vectors
     vec1.iter().enumerate().map(|(i,v)| {
         v + vec2[i]
     }).collect()
 }
 
-fn get_hash(vec: &Vec<i32>) -> u64 {
-    let mut hash: u64 = 0;
-    let primes: Vec<u64> = vec![2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97];
-    for (i,v) in vec.iter().enumerate() {
-        hash += primes[i].pow(*v as u32);
-    }
-    hash
+fn subtract_vectors(vec1: &Vec<i32>, vec2: &Vec<i32>) -> Vec<i32> {
+    // Subtract vector 2 from vector 1
+    vec1.iter().enumerate().map(|(i,v)| {
+        v - vec2[i]
+    }).collect()
 }
 
 impl Display for Machine {
@@ -169,10 +169,7 @@ impl Machine {
         let mut buttons: Vec<Button> = Vec::new();
         let mut joltages: Option<Vec<i32>> = None;
         let mut n_lights = 0; 
-        dbg!(ln);
         for (_, [start, group]) in re1.captures_iter(ln).map(|c| c.extract()) {
-            //dbg!(&start);
-            //dbg!(&group);
             match start {
                 "(" => {
                     buttons.push(Button::from_str(group));
@@ -198,10 +195,12 @@ impl Machine {
                 }
             }
         }
-        //dbg!(&target_lights);
-        //dbg!(&buttons);
-        //dbg!(&joltages);
-        Self {n_lights: n_lights, target_lights: target_lights.unwrap(), buttons: buttons, joltages: joltages.unwrap()}
+        Self {n_lights: n_lights,
+            target_lights: target_lights.unwrap(),
+            buttons: buttons,
+            joltages: joltages.unwrap(),
+            memory: BTreeMap::new(),
+        }
     }
 
     fn get_part1(&self) -> i32 {
@@ -233,7 +232,57 @@ impl Machine {
     }
 
     fn button_change_sum(&self) -> i32 {
+        // Get the sum of activations if all buttons were pressed once
         self.buttons.iter().map(|b| b.change_sum as i32).sum()
+    }
+
+    fn get_part2_recur(&mut self) -> i32 {
+        // Use a recursive solver
+        self.solve(self.joltages.clone())
+    }
+
+    fn solve(&mut self, target: Vec<i32>) -> i32 {
+        //println!("Solving target:  ");
+        //dbg!(&target);
+        let mut min_val = 9999;
+        if self.memory.contains_key(&target) {
+            //dbg!(&target);
+            //println!("Already checked");
+            return *self.memory.get(&target).unwrap();
+        }
+        for i_button in 0..(self.buttons.len()) {
+            let button = self.buttons[i_button];
+            let change_map = button.vector(self.n_lights);
+            if change_map  == target {
+                println!("Found target");
+                dbg!(&target);
+                println!("With button");
+                dbg!(&button);
+                // 1 move is enough to reach target
+                return 1;
+            }
+            let new_vec = subtract_vectors(&target, &change_map);
+            if new_vec.iter().all(|v| *v >= 0) {
+                let res = 1 + self.solve(new_vec);
+                if res == 0 {
+                    continue;
+                }
+                if res < min_val {
+                    println!("Found new minimum {} with button {}", res, button);
+                    min_val = res;
+                }
+            }
+        }
+        //println!("Solved target:  ");
+        //dbg!(&target);
+        //println!("got: {}", min_val);
+        if min_val == 9999 {
+            // No valid solutions were found
+            // Use -1 to denote invalid
+            min_val = -1;
+        }
+        self.memory.insert(target.clone(), min_val);
+        min_val
     }
 
     fn get_part2_tree_smart(&self) -> i32 {
@@ -309,24 +358,106 @@ impl Machine {
         }
     }
 
-    fn get_part2_tree(&self) -> i32 {
+    fn get_part2_fixed(&self) -> BTreeMap<usize, i32> {
+        // Try to fix some values of the buttons
+
         //println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
         let mut fixed_indices: BTreeMap<usize, i32> = BTreeMap::new();
-        let single_values = self.get_affected();
-        //dbg!(&single_values);
-        for (i_light,v) in self.get_affected().iter().enumerate() {
-            if v.len() == 1 {
-                let i_button = v[0];
-                let target_value = self.joltages[i_light];
-                //dbg!(&target_value);
-                //println!("Index {i_light} is only affected by a single button {i_button}");
-                //println!("This button should be pressed {target_value} times");
-                fixed_indices.insert(i_button, target_value);
+        // Check for each joltage value which buttons determine its state
+        let mut joltage_buttons = self.get_affected();
+        //dbg!(&joltage_buttons);
+        let mut j_loop = 0;
+        loop {
+            let mut changes: bool = false;
+            j_loop += 1;
+            // First check if some joltage value is only affected by a single button
+            for (i_light, v) in joltage_buttons.iter().enumerate() {
+                if v.len() == 1 {
+                    let i_button = v.iter().next().unwrap();
+                    if fixed_indices.contains_key(&i_button) {
+                        continue;
+                    }
+                    let target_value = self.joltages[i_light];
+                    //dbg!(&target_value);
+                    //println!("Index {i_light} is only affected by a single button {i_button}");
+                    //println!("This button should be pressed {target_value} times");
+                    changes = true;
+                    fixed_indices.insert(*i_button, target_value);
+                }
+            }
+
+            // Look for pairs of button activations, where there is only a difference of one
+            // activation, i.e. joltage 'a' has all the same button sources as joltage 'b' plus one extra
+            // Or vice versa
+            // Difference in target joltages a&b then defines to value for this one different
+            // button
+            for (ia,a) in joltage_buttons.iter().enumerate() {
+                for (ib,b) in joltage_buttons.iter().enumerate() {
+                    // Skip cases where b is as long or longer than a
+                    if b.len() >= a.len() {
+                        continue;
+                    }
+                    // Elements in a but not in b
+                    let diffs_a = a.iter().filter_map(|aa| {
+                        if !b.contains(aa) {
+                            Some(aa)
+                        } else {
+                            None
+                        }
+                    }).collect::<Vec<_>>();
+                    if diffs_a.len() == 1 {
+                        let mut target = self.joltages.clone();
+                        // Remove the values of fixed indices which have been already found
+                        for (i,v) in &fixed_indices {
+                            target[*i] -= v;
+                        }
+                        let target_a = target[ia];
+                        let target_b = target[ib];
+                        //println!("Fix index {} to {}", *diffs_a[0], target_a - target_b);
+                        //dbg!(&ia);
+                        //dbg!(&ib);
+                        //dbg!(&a);
+                        //dbg!(&b);
+                        fixed_indices.insert(*diffs_a[0], target_a - target_b);
+                    }
+                }
+            }
+            joltage_buttons = joltage_buttons.clone();
+            for fi in fixed_indices.keys() {
+                for v in joltage_buttons.iter_mut() {
+                    let ind = v.iter().position(|x| x == fi);
+                    match ind {
+                        Some(indi) => {
+                            v.remove(&fi);
+                        },
+                        _ => {},
+
+                    }
+                }
+            }
+            if !changes {
+                break;
             }
         }
+        if fixed_indices.len() > 0 {
+            let mut new_target = self.joltages.clone();
+            for (i,v) in &fixed_indices {
+                for j in self.buttons[*i].get_changes() {
+                    new_target[j] -= v;
+                }
+            }
+        }
+        fixed_indices
+    }
 
+    // Set priority to n_presses + abs(diff)
+    fn get_part2_tree(&self) -> i32 {
+        // Brute force solution to part2
+        // Works but is too slow
+        //
+        // Get buttons whose activation count is fixed
+        let fixed_indices = self.get_part2_fixed();
         let n_buttons = self.buttons.len();
-        let _n_lights = self.n_lights;
         let mut heads = PriorityQueue::new();
         let starting_head: Vec<i32> = (0..n_buttons).map(|i| {
             match fixed_indices.get(&i) {
@@ -334,26 +465,26 @@ impl Machine {
                 None => 0,
             }
         }).collect();
+        //dbg!(&fixed_indices);
+        let mut loop_count = 0;
+
+        // Get number of presses. This is used as priority in the queue
         let press_count = starting_head.iter().sum::<i32>();
-        //println!("Starting tree search with {} buttons", n_buttons);
-        //dbg!(&starting_head);
-        heads.push(starting_head, -press_count);
-        let mut prev_button_count = press_count;
-        let max_button_presses = self.joltages.iter().sum::<i32>();
+        let starting_sum = self.get_sum(&starting_head);
+        let diff_sum = self.get_diff_sum(&starting_sum);
+        //println!("Starting sum:");
+        //dbg!(&starting_sum);
+        //println!("Diff sum: {}", diff_sum);
+        let prio = press_count + diff_sum;
+        heads.push(starting_head, -prio);
         loop {
             if heads.len() == 0 {
                 continue;
             }
             let (button_activation, _prio) = heads.pop().unwrap();
-            let old_len = button_activation.iter().sum::<i32>();
-            if old_len > prev_button_count {
-                //println!("  Testing heads with total presses {}, expected max: {}", old_len, max_button_presses);
-                prev_button_count = old_len;
-            }
-            //println!("{}", heads.len());
-            //println!("Testing head with button activations {:?} (total presses {})", button_activation, old_len);
 
             let sum = self.get_sum(&button_activation);
+
             match self.compare_sum(&sum) {
                 Comparison::Exact => {
                     let a = button_activation.iter().sum::<i32>();
@@ -368,10 +499,12 @@ impl Machine {
                         if fixed_indices.contains_key(&i_button) {
                             continue;
                         }
-                        //let count = self.buttons[i_button].get_expected_count(&sum, &self.joltages);
                         let new_head = add_to_vector(&button_activation, i_button, 1);
-                        assert_eq!(new_head.iter().sum::<i32>(), old_len + 1);
-                        heads.push(new_head, -(old_len + 1));
+                        let new_sum = self.get_sum(&new_head);
+                        let diff_sum = self.get_diff_sum(&new_sum);
+                        let prio: i32 = diff_sum + new_head.iter().sum::<i32>() + 1;
+                        //assert_eq!(new_head.iter().sum::<i32>(), old_len + 1);
+                        heads.push(new_head, -prio);
                     }
                 }
             }
@@ -381,11 +514,25 @@ impl Machine {
     fn get_part2_tree_alt(&self) -> i32 {
         // Alternative version that keeps track of the joltage activation
         // instead of button activations
-        println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
+        //println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
+        let fixed_indices = self.get_part2_fixed();
         let n_buttons = self.buttons.len();
         let n_lights = self.n_lights;
         let mut heads = PriorityQueue::new();
-        heads.push((vec![0; n_lights],0), 0);
+
+        let starting_head: Vec<i32> = (0..n_buttons).map(|i| {
+            match fixed_indices.get(&i) {
+                Some(v) => *v,
+                None => 0,
+            }
+        }).collect();
+        let press_count = starting_head.iter().sum::<i32>();
+
+        println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
+        let starting_lights = self.get_sum(&starting_head);
+        dbg!(&fixed_indices);
+        dbg!(&starting_lights);
+        heads.push((starting_lights, press_count), -press_count);
         println!("Starting tree search with {} buttons", n_buttons);
         loop {
             if heads.len() == 0 {
@@ -394,10 +541,13 @@ impl Machine {
             let ((head,button_count), prio) = heads.pop().unwrap();
             //dbg!(&prio);
             //println!("{}", heads.len());
-            //println!("Testing head with button activations {:?} (total presses {})", button_activation, old_len);
+            println!("Testing head with button activations {:?} (total presses {})", head, button_count);
 
-            for button in self.buttons.iter() {
-                let new_head = add_vectors(&head, &button.get_change_map(self.n_lights));
+            for (i,button) in self.buttons.iter().enumerate() {
+                if fixed_indices.contains_key(&i) {
+                    continue;
+                }
+                let new_head = add_vectors(&head, &button.vector(self.n_lights));
                 for i in 0..self.n_lights {
                     if new_head[i] > self.joltages[i] {
                         //println!("  Skipping new head {:?} as it exceeds target at index {}", new_head, i);
@@ -415,9 +565,10 @@ impl Machine {
     }
 
     fn get_sum(&self, button_activations: &Vec<i32>) -> Vec<i32> {
+        // Get summed vector of button activations 
         let mut output: Vec<i32> = vec![0; self.n_lights];
         for (i, button) in self.buttons.iter().enumerate() {
-            for v in button.get_change_vector() {
+            for v in button.get_changes() {
                 output[v] += button_activations[i];
             }
         }
@@ -425,6 +576,7 @@ impl Machine {
     }
 
     fn get_diff_sum(&self, x: &Vec<i32>) -> i32 {
+        // Get sum of differences between target joltages and given vector
         if &self.joltages == x {
             return 0;
         }
@@ -434,6 +586,7 @@ impl Machine {
     }
 
     fn compare_sum(&self, x: &Vec<i32>) -> Comparison {
+        // Compare given vector to the target
         if &self.joltages == x {
             return Comparison::Exact
         }
@@ -447,14 +600,15 @@ impl Machine {
     }
 
     fn get_maximum_presses(&self) -> Vec<i64> {
+        // Get the maximum allowed number of presses for each button
          self.buttons.iter().enumerate().map(|(_i,b)| {
-            b.get_change_vector().iter().map(|v| {
+            b.get_changes().iter().map(|v| {
                 self.joltages[*v as usize]
             }).min().unwrap() as i64
         }).collect::<Vec<_>>()
     }
 
-    fn get_affected(&self) -> Vec<Vec<usize>> {
+    fn get_affected(&self) -> Vec<BTreeSet<usize>> {
         // Check how many buttons affect each light
         (0..self.n_lights).map(|v| {
             self.buttons.iter().enumerate().filter_map(|(i,b)| {
@@ -463,7 +617,7 @@ impl Machine {
                 } else {
                     None
                 }
-            }).collect::<Vec<usize>>()
+            }).collect::<BTreeSet<usize>>()
         }).collect::<Vec<_>>()
     }
 }
@@ -489,9 +643,6 @@ fn read_contents(cont: &str) -> (i64, i64) {
         res
     }).sum();
 
-    //cont.lines().enumerate().collect::<Vec<_>>().par_iter().map(|(_i, l)| {
-        //read_line(l, repeat)
-    //}).sum()
     (part1, part2)
 }
 
@@ -514,7 +665,7 @@ mod tests {
     #[test]
     fn button() {
         let b = Button::from_str("1,3,4");
-        let res = b.get_change_vector();
+        let res = b.get_changes();
         assert_eq!(res, vec![1,3,4]);
 
         assert_eq!(b.get_expected_count(&vec![0,0,0,0,0], &vec![2,1,0,3,4]), 1);
@@ -551,16 +702,19 @@ mod tests {
         assert_eq!(m.get_part2_tree(), 10);
         assert_eq!(m.get_part2_tree_alt(), 10);
 
-        let m = Machine::from_str("[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}");
+        let mut m = Machine::from_str("[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}");
         assert_eq!(m.get_part2_tree(), 12);
+        //assert_eq!(m.get_part2_recur(), 12);
         assert_eq!(m.get_part2_tree_alt(), 12);
 
-        let m = Machine::from_str("[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}");
+        let mut m = Machine::from_str("[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}");
         assert_eq!(m.get_part2_tree(), 11);
+        assert_eq!(m.get_part2_recur(), 11);
         assert_eq!(m.get_part2_tree_alt(), 11);
 
-        let m2 = Machine::from_str("l[#...##] (0,1,3,4,5) (0,4,5) (1,2,3,4) (0,1,2) {132,30,23,13,121,115}");
-        assert_eq!(m2.get_part2_tree(), 138);
+        //let m2 = Machine::from_str("l[#...##] (0,1,3,4,5) (0,4,5) (1,2,3,4) (0,1,2) {132,30,23,13,121,115}");
+        //assert_eq!(m2.get_part2_tree(), 138);
+        //assert_eq!(m2.get_part2_tree_alt(), 138);
 
         let a="[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
         [...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
@@ -568,5 +722,17 @@ mod tests {
         assert_eq!(read_contents(&a).1, 33);
     }
 
+
+    #[test]
+    fn hard() {
+        //let m = Machine::from_str("[#..###] (0,5) (1,3) (1,3,4) (0,1,2,3) (3) (0,1,3,4) (1,2,3) {22,51,19,63,22,1}");
+        //assert_eq!(m.get_part2_iter(), 11);
+
+        let mut m = Machine::from_str("[##.####.#.] (1,2,3,4,5,6,7,8,9) (0,1,2,3,4,5,6,8,9) (2,5,7,8) (1,3,4,5,7,9) (2,8) (2,3,5,6,7,8,9) (0,4,5,6,7,8,9) (5,9) (0,1,2,3,4,6,7,8,9) (2,4,5,6,8) {28,40,49,48,48,54,42,48,56,63}");
+        assert_eq!(m.solve(vec![0,1,1,1,1,1,1,1,1,1]), 1);
+        assert_eq!(m.solve(vec![0,2,2,2,2,2,2,2,2,2]), 2);
+        assert_eq!(m.solve(vec![0,9,9,9,9,9,9,9,9,9]), 9);
+        assert_eq!(m.get_part2_tree(), 999);
+    }
 }
 
