@@ -7,6 +7,9 @@ use regex::Regex;
 use priority_queue::PriorityQueue;
 extern crate rayon;
 
+use ndarray::prelude::*;
+use ndarray_linalg::Solve;
+
 use rayon::prelude::*;
 
 #[derive(Parser, Debug)]
@@ -74,6 +77,24 @@ impl Button {
                 vec.push(1);
             } else {
                 vec.push(0);
+            }
+        }
+        vec
+
+    }
+
+    fn vector_f64(&self, n:usize) -> Vec<f64> {
+        // Get the activations as a vector
+        let mut vec = Vec::new();
+
+        let mut div = self.changes;
+        let mut m;
+        for _i in 0..n {
+            (div, m) = (div / 2, div % 2);
+            if m == 1 {
+                vec.push(1 as f64);
+            } else {
+                vec.push(0 as f64);
             }
         }
         vec
@@ -239,6 +260,47 @@ impl Machine {
     fn get_part2_recur(&mut self) -> i32 {
         // Use a recursive solver
         self.solve(self.joltages.clone())
+    }
+
+    fn get_part2_linalg(&self) -> i64 {
+        let mut min_val = 0;
+        if self.buttons.len() < self.n_lights {
+            //println!("Underdetermined system - infinite solutions");
+        } else if self.buttons.len() == self.n_lights {
+            //println!("Determined system - single solution");
+            min_val = self.solve_linalg(&self.joltages);
+        } else {
+            //println!("Overdetermined system - no solution or multiple solutions");
+        }
+
+        if min_val == 0 {
+            println!("Could not find solution via linear algebra");
+        } else {
+            println!("Found solution via linear algebra with {} presses", min_val);
+        }
+        min_val
+    }
+
+    fn solve_linalg(&self, target: &Vec<i32>) -> i64 {
+        let matrix: Vec<Vec<f64>> = self.buttons.iter().map(|b| b.vector_f64(self.n_lights)).collect();
+
+        //dbg!(&matrix);
+        let M: Array2<f64> = Array2::from_shape_vec((self.n_lights, self.buttons.len()),
+            matrix.iter().flat_map(|v| v.iter()).cloned().collect()
+        ).unwrap().reversed_axes();
+        //dbg!(&M);
+        //let a: Array2<f64> = array![[3., 2., -1.], [2., -2., 4.], [-2., 1., -2.]];
+        //let b: Array1<f64> = array![1., -2., 0.];
+        let b = Array1::from_vec(target.iter().map(|v| *v as f64).collect());
+        match M.solve_into(b) {
+            Ok(x) => {
+                return x.sum().round() as i64;
+            },
+            Err(_) => {
+                return 0;
+            }
+        }
+        0
     }
 
     fn solve(&mut self, target: Vec<i32>) -> i32 {
@@ -635,11 +697,16 @@ fn read_contents(cont: &str) -> (i64, i64) {
         //m.get_part2_tree() as i64
     //}).sum();
 
+    let a = machines.iter().map(|m| (m.n_lights, m.buttons.len())).collect::<Vec<_>>();
+    println!("lights, buttons");
+    for aa in a.iter() {
+        println!("{}, {}", aa.0, aa.1);
+    }
     let part2 = machines.iter().enumerate().collect::<Vec<_>>().par_iter().map(|(i,m)| {
         //println!("Processing machine {} / {}", i, machines.len() );
         //println!("{}", m);
-        let res = m.get_part2_tree() as i64;
-        println!("index {i}: part2: {res}");
+        let res = m.get_part2_linalg() as i64;
+        //println!("index {i}: part2: {res}");
         res
     }).sum();
 
@@ -732,7 +799,8 @@ mod tests {
         assert_eq!(m.solve(vec![0,1,1,1,1,1,1,1,1,1]), 1);
         assert_eq!(m.solve(vec![0,2,2,2,2,2,2,2,2,2]), 2);
         assert_eq!(m.solve(vec![0,9,9,9,9,9,9,9,9,9]), 9);
-        assert_eq!(m.get_part2_tree(), 999);
+        assert_eq!(m.get_part2_linalg(), 78);
+        //assert_eq!(m.get_part2_tree(), 78);
     }
 }
 

@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.53", features = ["derive"] }
+ndarray = "0.15.6"
+ndarray-linalg = { version = "0.16", features = ["openblas-static"] }
 priority-queue = "2.7.0"
 rayon = "1.11.0"
 regex = "1.12.2"
