@@ -19,25 +19,6 @@ use rayon::prelude::*;
     input: String
 }
 
-// Found
-/*(0,  138),
-(1,  38),
-(2,  52),
-(3,  64),
-(4,  62),
-(11,  81),
-(40,  57),
-(41,  193),
-(42,  37),
-(46,  26),
-(69,  33),
-(93,  80),
-(98,  142),
-(116,  11),
-(128,  147),
-*/
-
-
 
 fn main() {
     let args = Args::parse();
@@ -46,6 +27,16 @@ fn main() {
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);  
     println!("Part 2 answer is {}", res.1);  
+}
+
+fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>>
+where
+    T: Clone,
+{
+    assert!(!v.is_empty());
+    (0..v[0].len())
+        .map(|i| v.iter().map(|inner| inner[i].clone()).collect::<Vec<T>>())
+        .collect()
 }
 
 
@@ -265,20 +256,24 @@ impl Machine {
     fn get_part2_linalg(&self) -> i64 {
         let mut min_val = 0;
         if self.buttons.len() < self.n_lights {
-            //println!("Underdetermined system - infinite solutions");
+            // Too many equations
+            println!("Overdetermined system - Possibly no solution");
         } else if self.buttons.len() == self.n_lights {
             //println!("Determined system - single solution");
             min_val = self.solve_linalg(&self.joltages);
+            if min_val == 0 {
+                println!("Could not find solution via linear algebra");
+            } else {
+                println!("Found solution via linear algebra with {} presses", min_val);
+            }
         } else {
-            //println!("Overdetermined system - no solution or multiple solutions");
+            println!("Underdetermined system - Possibly infinite solutions");
         }
-
-        if min_val == 0 {
-            println!("Could not find solution via linear algebra");
+        if min_val > 0 {
+            min_val
         } else {
-            println!("Found solution via linear algebra with {} presses", min_val);
+            self.get_part2_tree() as i64
         }
-        min_val
     }
 
     fn solve_linalg(&self, target: &Vec<i32>) -> i64 {
@@ -420,7 +415,22 @@ impl Machine {
         }
     }
 
-    fn get_part2_fixed(&self) -> BTreeMap<usize, i32> {
+
+    fn get_part2_fixed(&self) ->BTreeMap<usize, i32> {
+        let matrix: Vec<Vec<i32>> = transpose(self.buttons.iter().map(|b| b.vector(self.n_lights)).collect());
+
+        //dbg!(&matrix);
+        let mut eqsys = EquationSystem::new(self.joltages.clone(), matrix);
+        eqsys.solve();
+        eqsys.solution.iter().enumerate().filter_map(|(i,v)| {
+            match v {
+                Some(x) => Some((i, *x)),
+                None => None,
+            }
+        }).collect()
+    }
+
+    fn get_part2_fixed_alt(&self) -> BTreeMap<usize, i32> {
         // Try to fix some values of the buttons
 
         //println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
@@ -432,6 +442,9 @@ impl Machine {
         loop {
             let mut changes: bool = false;
             j_loop += 1;
+            if j_loop > 1 {
+                break;
+            }
             // First check if some joltage value is only affected by a single button
             for (i_light, v) in joltage_buttons.iter().enumerate() {
                 if v.len() == 1 {
@@ -519,6 +532,7 @@ impl Machine {
         //
         // Get buttons whose activation count is fixed
         let fixed_indices = self.get_part2_fixed();
+        //dbg!(&fixed_indices);
         let n_buttons = self.buttons.len();
         let mut heads = PriorityQueue::new();
         let starting_head: Vec<i32> = (0..n_buttons).map(|i| {
@@ -529,10 +543,15 @@ impl Machine {
         }).collect();
         //dbg!(&fixed_indices);
         let mut loop_count = 0;
+        //dbg!(&starting_head);
 
         // Get number of presses. This is used as priority in the queue
         let press_count = starting_head.iter().sum::<i32>();
         let starting_sum = self.get_sum(&starting_head);
+        if starting_sum == self.joltages {
+            //println!("Found solution with {} presses", press_count);
+            return press_count;
+        }
         let diff_sum = self.get_diff_sum(&starting_sum);
         //println!("Starting sum:");
         //dbg!(&starting_sum);
@@ -546,6 +565,10 @@ impl Machine {
             let (button_activation, _prio) = heads.pop().unwrap();
 
             let sum = self.get_sum(&button_activation);
+            loop_count += 1;
+            if loop_count > 1000000 {
+                return -1;
+            }
 
             match self.compare_sum(&sum) {
                 Comparison::Exact => {
@@ -684,31 +707,187 @@ impl Machine {
     }
 }
 
+struct EquationSystem {
+    target: Vec<i32>,
+    vectors: Vec<Vec<i32>>,
+    solution: Vec<Option<i32>>,
+    is_duplicate: Vec<bool>,
+}
+
+impl EquationSystem {
+    fn new(target: Vec<i32>, vectors: Vec<Vec<i32>>) -> Self {
+        let n = vectors.len();
+        assert_eq!(target.len(), vectors.len());
+        let buttons = vectors[0].len();
+        for v in vectors.iter() {
+            assert_eq!(v.len(), buttons);
+        }
+        Self {
+            target: target,
+            vectors: vectors,
+            solution: vec![None; buttons],
+            is_duplicate: vec![false; n],
+        }
+    }
+
+    fn remove_duplicates(&mut self) {
+        let mut unique_vectors: Vec<Vec<i32>> = Vec::new();
+        let mut unique_targets: Vec<i32> = Vec::new();
+        for (i,v) in self.vectors.iter().enumerate() {
+            if !unique_vectors.contains(v) {
+                unique_vectors.push(v.clone());
+                unique_targets.push(self.target[i]);
+            } else {
+                self.is_duplicate[i] = true;
+            }
+        }
+    }
+
+    fn get_unique(&self) -> (Vec<Vec<i32>>, Vec<i32>) {
+        let targets: Vec<i32> = self.target.iter().enumerate().filter_map(|(i,v)| {
+            if !self.is_duplicate[i] {
+                Some(*v)
+            } else {
+                None
+            }
+        }).collect();
+        let vectors = self.vectors.iter().enumerate().filter_map(|(i,v)| {
+            if !self.is_duplicate[i] {
+                Some(v.clone())
+            } else {
+                None
+            }
+        }).collect();
+        (vectors, targets)
+    }
+
+    fn check_vec(&self, vec: &Vec<i32>, target: i32) -> Option<(usize, i32)> {
+        let m = vec.iter().enumerate().filter_map(|(j,x)|{
+            if *x != 0 { Some((j, x)) } else { None }
+        }).collect::<Vec<_>>();
+
+        if 1 == m.len() {
+            let (xi, val) = m[0];
+            //println!("Only a single variable (index {}) in vector at index {} {:?}", xi, vi, v);
+            //println!("Target is {target}, coeff is {val}");
+            //println!("Return {xi} {}", target/val);
+            Some((xi, target / val))
+        } else {
+            None
+        }
+    }
+
+    fn solve(&mut self) {
+        loop {
+            let mut new_solution: Option<(usize,i32)> = None;
+            for (vi,v) in self.vectors.iter().enumerate() {
+                new_solution = self.check_vec(v, self.target[vi]);
+                if new_solution.is_some() {
+                    break;
+                }
+            }
+
+            if new_solution.is_none() {
+                //println!("Try Next Step");
+                for (ai, a) in self.vectors.iter().enumerate() {
+                    if new_solution.is_some() {
+                        //println!("Breaking outer loop");
+                        break;
+                    }
+                    if self.is_duplicate[ai] {
+                        continue;
+                    }
+                    for (bi, b) in self.vectors.iter().enumerate() {
+                        if self.is_duplicate[bi] || ai == bi {
+                            continue;
+                        }
+                        let target_a = self.target[ai];
+                        let target_b = self.target[bi];
+                        if target_a > target_b {
+                            continue
+                        }
+                        let new_vec = a.iter().enumerate().map(|(i,av)| {
+                            b[i] - av
+                        }).collect::<Vec<_>>();
+
+                        let target = target_b - target_a;
+                        new_solution = self.check_vec(&new_vec, target);
+                        if new_solution.is_some() {
+                            break;
+                        }
+                    }
+                }
+            }
+            //dbg!(&new_solution);
+
+            if new_solution.is_none() {
+                let (vec_remaining, target_remaining)  = self.get_unique();
+                let i_max = 3_i32.pow(vec_remaining.len() as u32);
+                for i in 0..i_max {
+                    let mut test_vec: Vec<i32> = vec![0; vec_remaining[0].len()];
+                    let mut target_test = 0;
+                    for (j,v) in vec_remaining.iter().enumerate() {
+                        let coeff = (i / 3_i32.pow(j as u32)) % 3 - 1;
+                        target_test += coeff * target_remaining[j];
+                        for (k, vk) in v.iter().enumerate() {
+                            test_vec[k] += coeff * vk;
+                        }
+                    }
+                    new_solution = self.check_vec(&test_vec, target_test);
+                    if new_solution.is_some() {
+                        break;
+                    }
+                }
+            }
+
+
+            if new_solution.is_none() {
+                break;
+            } else {
+                let (ix, x) = new_solution.unwrap();
+                self.solution[ix] = Some(x);
+                for (vj,v) in self.vectors.iter_mut().enumerate() {
+                    if v[ix] != 0 {
+                        let coeff = v[ix];
+                        assert_eq!(coeff, 1);
+                        self.target[vj] -= coeff * x;
+                        v[ix] = 0;
+                    }
+                }
+            }
+            self.remove_duplicates();
+        }
+    }
+
+}
 
 fn read_contents(cont: &str) -> (i64, i64) {
     let machines: Vec<Machine> = cont.lines().map(|ln| {
         Machine::from_str(ln)
     }).collect();
-    dbg!(&machines);
+    //dbg!(&machines);
     let part1 = machines.iter().map(|m| m.get_part1() as i64).sum();
-    //let part2 = machines.iter().enumerate().map(|(i,m)| {
-        //println!("Processing machine {} / {}", i, machines.len() );
-        //println!("{}", m);
-        //m.get_part2_tree() as i64
-    //}).sum();
-
-    let a = machines.iter().map(|m| (m.n_lights, m.buttons.len())).collect::<Vec<_>>();
-    println!("lights, buttons");
-    for aa in a.iter() {
-        println!("{}, {}", aa.0, aa.1);
-    }
-    let part2 = machines.iter().enumerate().collect::<Vec<_>>().par_iter().map(|(i,m)| {
-        //println!("Processing machine {} / {}", i, machines.len() );
-        //println!("{}", m);
+    let part2 = machines.iter().enumerate().map(|(i,m)| {
+      //println!("Processing machine {} / {}", i, machines.len() );
+      //println!("{}", m);
+      //m.get_part2_tree() as i64
         let res = m.get_part2_linalg() as i64;
-        //println!("index {i}: part2: {res}");
+        println!("index {i:02}: part2: {res}");
         res
     }).sum();
+
+    //let a = machines.iter().map(|m| (m.n_lights, m.buttons.len())).collect::<Vec<_>>();
+    //println!("lights, buttons");
+    //for aa in a.iter() {
+    //    println!("{}, {}", aa.0, aa.1);
+    //}
+    //let part2 = machines.iter().enumerate().collect::<Vec<_>>().par_iter().map(|(i,m)| {
+    //    println!("Processing machine {} / {}", i, machines.len() );
+    //    //println!("{}", m);
+    //    let res = m.get_part2_linalg() as i64;
+    //    println!("index {i}: part2: {res}");
+    //    res
+    //}).sum();
 
     (part1, part2)
 }
@@ -717,6 +896,38 @@ fn read_contents(cont: &str) -> (i64, i64) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+
+    #[test]
+    fn equation() {
+        let mut sys = EquationSystem::new(vec![5,7,3], vec![
+            vec![1,1,1],
+            vec![1,0,0],
+            vec![1,1,0],
+        ]);
+
+        sys.solve();
+        assert_eq!(sys.solution, vec![Some(7), Some(-4), Some(2)]);
+
+        let mat = vec![
+                      vec![0, 1, 0, 0, 0, 0, 1, 0, 1, 0],
+                      vec![1, 1, 0, 1, 0, 0, 0, 0, 1, 0],
+                      vec![1, 1, 1, 0, 1, 1, 0, 0, 1, 1],
+                      vec![1, 1, 0, 1, 0, 1, 0, 0, 1, 0],
+                      vec![1, 1, 0, 1, 0, 0, 1, 0, 1, 1],
+                      vec![1, 1, 1, 1, 0, 1, 1, 1, 0, 1],
+                      vec![1, 1, 0, 0, 0, 1, 1, 0, 1, 1],
+                      vec![1, 0, 1, 1, 0, 1, 1, 0, 1, 0],
+                      vec![1, 1, 1, 0, 1, 1, 1, 0, 1, 1],
+                      vec![1, 1, 0, 1, 0, 1, 1, 1, 1, 0],
+        ];
+        let target = vec![28,40,49,48,48,54,42,48,56,63];
+
+        let mut sys = EquationSystem::new(target, mat);
+        sys.solve();
+        let target_solution = vec![Some(5), Some(9), Some(2), Some(14), Some(12), Some(8), Some(7), Some(8), Some(12), Some(1)];
+        assert_eq!(sys.solution, target_solution);
+    }
 
     #[test]
     fn part1() {
@@ -800,7 +1011,7 @@ mod tests {
         assert_eq!(m.solve(vec![0,2,2,2,2,2,2,2,2,2]), 2);
         assert_eq!(m.solve(vec![0,9,9,9,9,9,9,9,9,9]), 9);
         assert_eq!(m.get_part2_linalg(), 78);
-        //assert_eq!(m.get_part2_tree(), 78);
+        assert_eq!(m.get_part2_tree(), 78);
     }
 }
 
