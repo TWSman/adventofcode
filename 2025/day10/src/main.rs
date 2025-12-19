@@ -20,6 +20,199 @@ use rayon::prelude::*;
 }
 
 
+fn get_solved() -> BTreeMap<usize,i32> {
+    BTreeMap::from([
+        (000, 138),
+        (001, 38),
+        (002, 52),
+        (003, 64),
+        (004, 62),
+        (005, 107),
+        (006, 199),
+        (007, -1),
+        (008, 78),
+        (009, 39),
+        (010, 237),
+        (011, 81),
+        (012, -1),
+        (013, 83),
+        (014, -1),
+        (015, 219),
+        (016, 81),
+        (017, 77),
+        (018, -1),
+        (019, 60),
+        (020, -1),
+        (021, 91),
+        (022, 180),
+        (023, -1),
+        (024, 222),
+        (025, 95),
+        (026, 66),
+        (027, 213),
+        (028, 8),
+        (029, 191),
+        (030, 39),
+        (031, 215),
+        (032, 26),
+        (033, 82),
+        (034, 68),
+        (035, 60),
+        (036, 53),
+        (037, -1),
+        (038, 56),
+        (039, 57),
+        (040, 57),
+        (041, 193),
+        (042, 37),
+        (043, 228),
+        (044, -1),
+        (045, 48),
+        (046, 26),
+        (047, 66),
+        (048, 93),
+        (049, 14),
+        (050, 42),
+        (051, -1),
+        (052, 156),
+        (053, -1),
+        (054, -1),
+        (055, 212),
+        (056, 206),
+        (057, 141),
+        (058, -1),
+        (059, -1),
+        (060, 171),
+        (061, 87),
+        (062, -1),
+        (063, 220),
+        (064, -1),
+        (065, 45),
+        (066, 72),
+        (067, 53),
+        (068, 58),
+        (069, 34),
+        (070, 191),
+        (071, 74),
+        (072, 50),
+        (073, 259),
+        (074, -1),
+        (075, 90),
+        (076, 80),
+        (077, 55),
+        (078, -1),
+        (079, 115),
+        (080, -1),
+        (081, 212),
+        (082, 60),
+        (083, 149),
+        (084, 50),
+        (085, 44),
+        (086, 73),
+        (087, 63),
+        (088, 76),
+        (089, -1),
+        (090, -1),
+        (091, 19),
+        (092, 147),
+        (093, 80),
+        (094, 73),
+        (095, -1),
+        (096, 59),
+        (097, 84),
+        (098, 142),
+        (099, 287),
+        (100, 90),
+        (101, 55),
+        (102, -1),
+        (103, 67),
+        (104, 74),
+        (105, 264),
+        (106, 85),
+        (107, 11),
+        (108, 150),
+        (109, -1),
+        (110, -1),
+        (111, 96),
+        (112, 199),
+        (113, 32),
+        (114, 39),
+        (115, 46),
+        (116, 11),
+        (117, -1),
+        (118, 185),
+        (119, 56),
+        (120, -1),
+        (121, 178),
+        (122, 317),
+        (123, 82),
+        (124, 116),
+        (125, 236),
+        (126, -1),
+        (127, 56),
+        (128, 147),
+        (129, -1),
+        (130, -1),
+        (131, 232),
+        (132, 90),
+        (133, 136),
+        (134, -1),
+        (135, 118),
+        (136, 110),
+        (137, 201),
+        (138, 80),
+        (139, -1),
+        (140, 195),
+        (141, 161),
+        (142, -1),
+        (143, 126),
+        (144, 57),
+        (145, 51),
+        (146, -1),
+        (147, 70),
+        (148, 237),
+        (149, 229),
+        (150, 22),
+        (151, -1),
+        (152, -1),
+        (153, -1),
+        (154, -1),
+        (155, 212),
+        (156, 34),
+        (157, 55),
+        (158, 100),
+        (159, 11),
+        (160, 87),
+        (161, 56),
+        (162, 194),
+        (163, 63),
+        (164, 216),
+        (165, 28),
+        (166, 76),
+        (167, 59),
+        (168, 233),
+        (169, 138),
+        (170, 227),
+        (171, 43),
+        (172, -1),
+        (173, 21),
+        (174, 52),
+        (175, 77),
+        (176, 68),
+        (177, 199),
+        (178, 99),
+        (179, 22),
+        (180, -1),
+        (181, 55),
+        (182, 103),
+        (183, -1),
+        (184, 93),
+        (185, -1),
+        (186, 72),
+    ])
+}
+
+
 fn main() {
     let args = Args::parse();
     let contents = fs::read_to_string(args.input)
@@ -255,12 +448,44 @@ impl Machine {
 
     fn get_part2_linalg(&self) -> i64 {
         let mut min_val = 0;
+        println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
         if self.buttons.len() < self.n_lights {
             // Too many equations
-            println!("Overdetermined system - Possibly no solution");
+            assert!(self.buttons.len() >= self.n_lights - 2);
+            match self.n_lights - self.buttons.len()  {
+                2 => {
+                    for i in 0..self.n_lights {
+                        for j in 0..self.n_lights {
+                            if j >= i {
+                                continue;
+                            }
+                            println!("Removing equations {} and {}", i, j);
+                            min_val = self.solve_linalg(&self.joltages, vec![i,j]);
+                            if min_val > 0 {
+                                println!("Found solution by removing equations {} and {}", i, j);
+                                return min_val;
+                            }
+                        }
+                    }
+                },
+                1 => {
+                    println!("Removing 1 equations");
+                    for i in 0..self.n_lights {
+                        min_val = self.solve_linalg(&self.joltages, vec![i]);
+                        if min_val > 0 {
+                            return min_val;
+                        }
+                    }
+                    //return -2;
+                },
+                _ => {
+                    // There should always be either 1 or 2 extra equations
+                    panic!("Unexpected equation count");
+                }
+            }
         } else if self.buttons.len() == self.n_lights {
             //println!("Determined system - single solution");
-            min_val = self.solve_linalg(&self.joltages);
+            min_val = self.solve_linalg(&self.joltages, vec![]);
             if min_val == 0 {
                 println!("Could not find solution via linear algebra");
             } else {
@@ -276,26 +501,44 @@ impl Machine {
         }
     }
 
-    fn solve_linalg(&self, target: &Vec<i32>) -> i64 {
-        let matrix: Vec<Vec<f64>> = self.buttons.iter().map(|b| b.vector_f64(self.n_lights)).collect();
+    fn solve_linalg(&self, target: &Vec<i32>, drop_indices: Vec<usize>) -> i64 {
+        let mut matrix: Vec<Vec<f64>> = transpose(self.buttons.iter().map(|b| b.vector_f64(self.n_lights)).collect());
+        if !drop_indices.is_empty() {
+            matrix = matrix.iter().enumerate().filter_map(|(i,v)| {
+                if drop_indices.contains(&i) {
+                    None
+                } else {
+                    Some(v.clone())
+                }
+            }).collect();
+        }
 
-        //dbg!(&matrix);
-        let M: Array2<f64> = Array2::from_shape_vec((self.n_lights, self.buttons.len()),
+        let b = if drop_indices.is_empty() {
+            Array1::from_vec(target.iter().map(|v| *v as f64).collect())
+        } else {
+            Array1::from_vec(target.iter().enumerate().filter_map(|(i,v)|{
+                if drop_indices.contains(&i) {
+                    None
+                } else {
+                    dbg!(&v);
+                    Some(*v as f64)
+                }
+            }).collect())
+        };
+
+        let n = matrix.len();
+        let m: Array2<f64> = Array2::from_shape_vec((n, n),
             matrix.iter().flat_map(|v| v.iter()).cloned().collect()
-        ).unwrap().reversed_axes();
-        //dbg!(&M);
-        //let a: Array2<f64> = array![[3., 2., -1.], [2., -2., 4.], [-2., 1., -2.]];
-        //let b: Array1<f64> = array![1., -2., 0.];
-        let b = Array1::from_vec(target.iter().map(|v| *v as f64).collect());
-        match M.solve_into(b) {
+        ).unwrap();
+
+        match m.solve_into(b) {
             Ok(x) => {
-                return x.sum().round() as i64;
+                x.sum().round() as i64
             },
             Err(_) => {
-                return 0;
+                0
             }
         }
-        0
     }
 
     fn solve(&mut self, target: Vec<i32>) -> i32 {
@@ -416,113 +659,77 @@ impl Machine {
     }
 
 
-    fn get_part2_fixed(&self) ->BTreeMap<usize, i32> {
+    fn get_part2_fixed(&self) -> (BTreeMap<usize, i32>, Vec<(usize,usize,i32)>) {
         let matrix: Vec<Vec<i32>> = transpose(self.buttons.iter().map(|b| b.vector(self.n_lights)).collect());
 
-        //dbg!(&matrix);
-        let mut eqsys = EquationSystem::new(self.joltages.clone(), matrix);
+        let mut eqsys = EquationSystem::new(self.joltages.clone(), matrix.clone());
         eqsys.solve();
-        eqsys.solution.iter().enumerate().filter_map(|(i,v)| {
-            match v {
-                Some(x) => Some((i, *x)),
-                None => None,
-            }
-        }).collect()
-    }
 
-    fn get_part2_fixed_alt(&self) -> BTreeMap<usize, i32> {
-        // Try to fix some values of the buttons
+        let (matx, sol) = eqsys.get_unique();
+        for i in 0..matx.len() {
+            println!("{:?} = {}", matx[i], sol[i]);
+        }
 
-        //println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
-        let mut fixed_indices: BTreeMap<usize, i32> = BTreeMap::new();
-        // Check for each joltage value which buttons determine its state
-        let mut joltage_buttons = self.get_affected();
-        //dbg!(&joltage_buttons);
-        let mut j_loop = 0;
-        loop {
-            let mut changes: bool = false;
-            j_loop += 1;
-            if j_loop > 1 {
-                break;
-            }
-            // First check if some joltage value is only affected by a single button
-            for (i_light, v) in joltage_buttons.iter().enumerate() {
-                if v.len() == 1 {
-                    let i_button = v.iter().next().unwrap();
-                    if fixed_indices.contains_key(&i_button) {
-                        continue;
-                    }
-                    let target_value = self.joltages[i_light];
-                    //dbg!(&target_value);
-                    //println!("Index {i_light} is only affected by a single button {i_button}");
-                    //println!("This button should be pressed {target_value} times");
-                    changes = true;
-                    fixed_indices.insert(*i_button, target_value);
-                }
-            }
-
-            // Look for pairs of button activations, where there is only a difference of one
-            // activation, i.e. joltage 'a' has all the same button sources as joltage 'b' plus one extra
-            // Or vice versa
-            // Difference in target joltages a&b then defines to value for this one different
-            // button
-            for (ia,a) in joltage_buttons.iter().enumerate() {
-                for (ib,b) in joltage_buttons.iter().enumerate() {
-                    // Skip cases where b is as long or longer than a
-                    if b.len() >= a.len() {
-                        continue;
-                    }
-                    // Elements in a but not in b
-                    let diffs_a = a.iter().filter_map(|aa| {
-                        if !b.contains(aa) {
-                            Some(aa)
-                        } else {
-                            None
-                        }
-                    }).collect::<Vec<_>>();
-                    if diffs_a.len() == 1 {
-                        let mut target = self.joltages.clone();
-                        // Remove the values of fixed indices which have been already found
-                        for (i,v) in &fixed_indices {
-                            target[*i] -= v;
-                        }
-                        let target_a = target[ia];
-                        let target_b = target[ib];
-                        //println!("Fix index {} to {}", *diffs_a[0], target_a - target_b);
-                        //dbg!(&ia);
-                        //dbg!(&ib);
-                        //dbg!(&a);
-                        //dbg!(&b);
-                        fixed_indices.insert(*diffs_a[0], target_a - target_b);
-                    }
-                }
-            }
-            joltage_buttons = joltage_buttons.clone();
-            for fi in fixed_indices.keys() {
-                for v in joltage_buttons.iter_mut() {
-                    let ind = v.iter().position(|x| x == fi);
-                    match ind {
-                        Some(indi) => {
-                            v.remove(&fi);
-                        },
-                        _ => {},
-
-                    }
-                }
-            }
-            if !changes {
-                break;
+        // Collect possible pairs
+        let mut pairs: Vec<(usize,usize,i32)> = Vec::new();
+        for (j,v) in matx.iter().enumerate() {
+            if 2 == v.iter().sum() {
+                let ind = v.iter().enumerate().filter_map(|(i,x)| {
+                    if *x != 0 { Some(i) } else { None }
+                }).collect::<Vec<usize>>();
+                let t = sol[j];
+                println!("X{} and X{} sum to {}", ind[0], ind[1], t);
+                pairs.push((ind[0], ind[1], t));
+            } else {
+                assert!(1 < v.iter().sum());
             }
         }
-        if fixed_indices.len() > 0 {
-            let mut new_target = self.joltages.clone();
-            for (i,v) in &fixed_indices {
-                for j in self.buttons[*i].get_changes() {
-                    new_target[j] -= v;
+        pairs.sort_by(|a,b| a.2.cmp(&b.2));
+        
+        let mut min_sum = 99999;
+        let mut best_solution: Option<Vec<Option<i32>>> = None;
+        if pairs.len() > 0 {
+            let (i1,i2,target) = pairs[0];
+            println!("  X{} + X{} = {}", i1, i2, target);
+            for v1 in 0..=target {
+                let v2 = target - v1;
+                println!("    Trying X{} = {}, X{} = {}", i1, v1, i2, v2);
+                let mut new_sys = eqsys.clone();
+                new_sys.add_solution((i1,v1));
+                new_sys.solve();
+                //dbg!(&new_sys.solution);
+                let score = new_sys.solution.iter().map(|x| {
+                    match x {
+                        Some(v) if *v > 0 => *v,
+                        _ => -999999, // Add a large negative number to guarantee that score
+                        // will be negative when not all variables are solved
+                    }
+                }).sum::<i32>();
+                if score > 0 && score < min_sum {
+                    min_sum = score;
+                    best_solution = Some(new_sys.solution.clone());
                 }
             }
+            //let solution = eqsys.solution.clone();
+            //new_sys.solution;
         }
-        fixed_indices
+
+        let fixed_map = if best_solution.is_some() {
+                best_solution.unwrap().iter().enumerate().filter_map(|(i,v)| {
+                match v {
+                    Some(x) => Some((i, *x)),
+                    None => None,
+                }
+            }).collect()
+        } else {
+            eqsys.solution.iter().enumerate().filter_map(|(i,v)| {
+                match v {
+                    Some(x) => Some((i, *x)),
+                    None => None,
+                }
+            }).collect()
+        };
+        (fixed_map, pairs)
     }
 
     // Set priority to n_presses + abs(diff)
@@ -531,7 +738,9 @@ impl Machine {
         // Works but is too slow
         //
         // Get buttons whose activation count is fixed
-        let fixed_indices = self.get_part2_fixed();
+        let (fixed_indices, _pairs) = self.get_part2_fixed();
+        // This should not happen here
+        //assert!(pairs.len() == 0);
         //dbg!(&fixed_indices);
         let n_buttons = self.buttons.len();
         let mut heads = PriorityQueue::new();
@@ -549,44 +758,68 @@ impl Machine {
         let press_count = starting_head.iter().sum::<i32>();
         let starting_sum = self.get_sum(&starting_head);
         if starting_sum == self.joltages {
-            //println!("Found solution with {} presses", press_count);
+            println!("Found solution with {} presses", press_count);
             return press_count;
+        }
+        else {
+            //dbg!(&starting_sum);
+            //dbg!(&self.joltages);
+            //panic!();
         }
         let diff_sum = self.get_diff_sum(&starting_sum);
         //println!("Starting sum:");
         //dbg!(&starting_sum);
         //println!("Diff sum: {}", diff_sum);
+        //match pairs.get(0) {
+        //    Some((i1,i2,target)) =>  {
+        //        fixed_indices.insert(*i1, -1);
+        //        fixed_indices.insert(*i2, -1);
+        //        for v1 in 0..=*target {
+        //            let v2 = target - v1;
+        //            let new_head = add_to_vector(&starting_head, *i1, v1);
+        //            let new_head = add_to_vector(&new_head, *i2, v2);
+        //            let new_sum = self.get_sum(&new_head);
+        //            let diff_sum = self.get_diff_sum(&new_sum);
+        //            let prio: i32 = diff_sum + new_head.iter().sum::<i32>() + 1;
+        //            heads.push(new_head, -prio);
+        //            }
+        //        }
+        //    None => {}
+        //}
         let prio = press_count + diff_sum;
         heads.push(starting_head, -prio);
         loop {
             if heads.len() == 0 {
-                continue;
+                break -1;
             }
             let (button_activation, _prio) = heads.pop().unwrap();
 
-            let sum = self.get_sum(&button_activation);
             loop_count += 1;
-            if loop_count > 1000000 {
+            if loop_count > 100000 {
+                println!("Processed {} heads so far.... Quit", loop_count);
                 return -1;
             }
 
-            match self.compare_sum(&sum) {
-                Comparison::Exact => {
-                    let a = button_activation.iter().sum::<i32>();
-                    println!("Found solution with {a} presses");
-                    return a;
-                },
-                Comparison::Larger => {
-                    continue
+            for i_button in 0..n_buttons {
+                if fixed_indices.contains_key(&i_button) {
+                    continue;
                 }
-                Comparison::Smaller => {
-                    for i_button in 0..n_buttons {
-                        if fixed_indices.contains_key(&i_button) {
-                            continue;
-                        }
-                        let new_head = add_to_vector(&button_activation, i_button, 1);
-                        let new_sum = self.get_sum(&new_head);
+                let new_head = add_to_vector(&button_activation, i_button, 1);
+                let new_sum = self.get_sum(&new_head);
+                match self.compare_sum(&new_sum) {
+                    Comparison::Larger => {
+                        continue;
+                    },
+                    Comparison::Exact => {
+                        let a = new_head.iter().sum::<i32>();
+                        println!("Found solution with {a} presses");
+                        return a;
+                    },
+                    Comparison::Smaller => {
                         let diff_sum = self.get_diff_sum(&new_sum);
+                        //dbg!(&new_head);
+                        //dbg!(&new_sum);
+                        //dbg!(&diff_sum);
                         let prio: i32 = diff_sum + new_head.iter().sum::<i32>() + 1;
                         //assert_eq!(new_head.iter().sum::<i32>(), old_len + 1);
                         heads.push(new_head, -prio);
@@ -600,7 +833,7 @@ impl Machine {
         // Alternative version that keeps track of the joltage activation
         // instead of button activations
         //println!("Processing machine with {} buttons and {} lights", self.buttons.len(), self.n_lights);
-        let fixed_indices = self.get_part2_fixed();
+        let (fixed_indices, _pairs) = self.get_part2_fixed();
         let n_buttons = self.buttons.len();
         let n_lights = self.n_lights;
         let mut heads = PriorityQueue::new();
@@ -707,6 +940,7 @@ impl Machine {
     }
 }
 
+#[derive(Debug, Clone)]
 struct EquationSystem {
     target: Vec<i32>,
     vectors: Vec<Vec<i32>>,
@@ -745,14 +979,14 @@ impl EquationSystem {
 
     fn get_unique(&self) -> (Vec<Vec<i32>>, Vec<i32>) {
         let targets: Vec<i32> = self.target.iter().enumerate().filter_map(|(i,v)| {
-            if !self.is_duplicate[i] {
+            if !self.is_duplicate[i] && self.target[i] != 0 {
                 Some(*v)
             } else {
                 None
             }
         }).collect();
         let vectors = self.vectors.iter().enumerate().filter_map(|(i,v)| {
-            if !self.is_duplicate[i] {
+            if !self.is_duplicate[i] && self.target[i] != 0 {
                 Some(v.clone())
             } else {
                 None
@@ -774,6 +1008,19 @@ impl EquationSystem {
             Some((xi, target / val))
         } else {
             None
+        }
+    }
+
+    fn add_solution(&mut self, solution: (usize, i32)) {
+        let (ix, x) = solution;
+        self.solution[ix] = Some(x);
+        for (vj,v) in self.vectors.iter_mut().enumerate() {
+            if v[ix] != 0 {
+                let coeff = v[ix];
+                assert_eq!(coeff, 1);
+                self.target[vj] -= coeff * x;
+                v[ix] = 0;
+            }
         }
     }
 
@@ -818,16 +1065,18 @@ impl EquationSystem {
                     }
                 }
             }
-            //dbg!(&new_solution);
 
             if new_solution.is_none() {
+                println!("Try combinations");
                 let (vec_remaining, target_remaining)  = self.get_unique();
-                let i_max = 3_i32.pow(vec_remaining.len() as u32);
+                let combos = 3_i32;
+                let i_max = combos.pow(vec_remaining.len() as u32);
+                println!("{i_max} combinations");
                 for i in 0..i_max {
                     let mut test_vec: Vec<i32> = vec![0; vec_remaining[0].len()];
                     let mut target_test = 0;
                     for (j,v) in vec_remaining.iter().enumerate() {
-                        let coeff = (i / 3_i32.pow(j as u32)) % 3 - 1;
+                        let coeff = (i / combos.pow(j as u32)) % combos - (combos / 2);
                         target_test += coeff * target_remaining[j];
                         for (k, vk) in v.iter().enumerate() {
                             test_vec[k] += coeff * vk;
@@ -840,22 +1089,22 @@ impl EquationSystem {
                 }
             }
 
-
             if new_solution.is_none() {
                 break;
             } else {
                 let (ix, x) = new_solution.unwrap();
-                self.solution[ix] = Some(x);
-                for (vj,v) in self.vectors.iter_mut().enumerate() {
-                    if v[ix] != 0 {
-                        let coeff = v[ix];
-                        assert_eq!(coeff, 1);
-                        self.target[vj] -= coeff * x;
-                        v[ix] = 0;
-                    }
-                }
+                self.add_solution((ix, x));
             }
             self.remove_duplicates();
+            let (matx, sol) = self.get_unique();
+            if sol.len() == 0 {
+                // No unknowns left
+                break;
+            }
+            for i in 0..matx.len() {
+                println!("{:?} = {}", matx[i], sol[i]);
+            }
+            //#dbg!(&self.get_unique());
         }
     }
 
@@ -867,14 +1116,38 @@ fn read_contents(cont: &str) -> (i64, i64) {
     }).collect();
     //dbg!(&machines);
     let part1 = machines.iter().map(|m| m.get_part1() as i64).sum();
+    let solved_cases = get_solved();
+    let mut solved = 0;
+    let mut new_solved = 0;
     let part2 = machines.iter().enumerate().map(|(i,m)| {
       //println!("Processing machine {} / {}", i, machines.len() );
       //println!("{}", m);
       //m.get_part2_tree() as i64
+        if solved_cases[&i] != -1 {
+            println!("Skipping machine {} as already solved", i);
+            solved += 1;
+            return 0;
+        }
         let res = m.get_part2_linalg() as i64;
-        println!("index {i:02}: part2: {res}");
+        if res == -2 {
+            println!("Could not find solution for machine {}", i);
+            panic!();
+        }
+        if res > 0 {
+            solved += 1;
+            new_solved += 1;
+            println!("index {i:03}: part2: {res}");
+        }
+        //if res == -1 && i != 7 && i != 12 && i != 14 {
+        //    dbg!(&m);
+        //    println!("Could not find solution for machine {}", i);
+        //    panic!();
+        //}
+        //println!("index {i:03}: part2: {res}");
         res
     }).sum();
+
+    println!("Solved {}/{} machines, new solves: {}", solved, machines.len(), new_solved);
 
     //let a = machines.iter().map(|m| (m.n_lights, m.buttons.len())).collect::<Vec<_>>();
     //println!("lights, buttons");
@@ -1011,7 +1284,62 @@ mod tests {
         assert_eq!(m.solve(vec![0,2,2,2,2,2,2,2,2,2]), 2);
         assert_eq!(m.solve(vec![0,9,9,9,9,9,9,9,9,9]), 9);
         assert_eq!(m.get_part2_linalg(), 78);
-        assert_eq!(m.get_part2_tree(), 78);
+        //assert_eq!(m.get_part2_tree(), 78);
     }
+
+    #[test]
+    fn index7() {
+        let m = Machine::from_str("[#.....####] (6) (5,7,8) (0,1,3,4,9) (0,2,4,5,6,9) (1,2,8) (0,4,5,7) (4,6) (0,2,3,7,8,9) (1,5,6,9) (0,2,3) (0,2,3,4,6,7,8,9) (3,4,8) {57,31,44,54,68,54,52,48,62,47}");
+        assert_eq!(m.get_part2_linalg(), 78);
+    }
+
+    #[test]
+    fn index12() {
+        let m = Machine::from_str("[#.#####.##] (3,4) (0,1,3,4,5,7,8,9) (1,2,3,4,5,6,7,9) (0,1,2,3,7) (0,1,2,3,5,7,8,9) (0,1,2,3,5,6,7,9) (0,1,3,4,6) (0,4,5,6,7,8,9) (1,3,4,9) (0,3,5,6,7,8) (1,2,3,4,7,8) {51,83,66,96,74,54,52,81,36,64}");
+        assert_eq!(m.get_part2_linalg(), 1);
+    }
+
+    #[test]
+    fn index18() {
+        let m = Machine::from_str("[.#...#..] (0,1,5,7) (4,5) (0,6) (0,1,2,5,6,7) (0,1,2,4,6,7) (2,7) (0,2,5,7) (3,4,5) (0,1) {42,29,42,6,29,54,20,52}");
+        assert_eq!(m.get_part2_linalg(), 74);
+    }
+
+    #[test]
+    fn index0() {
+        let m = Machine::from_str("[#...##] (0,1,3,4,5) (0,4,5) (1,2,3,4) (0,1,2) {132,30,23,13,121,115}");
+        assert_eq!(m.get_part2_linalg(), 138);
+    }
+
+    #[test]
+    fn index10() {
+        let m = Machine::from_str("[#.#...#.] (5,6) (2,3) (1,4,5,6,7) (2,3,6) (1,2,3,4,6,7) (3,4,5,6) (0,1,3,4,7) {19,36,183,222,56,35,55,36}");
+        assert_eq!(m.get_part2_linalg(), 237);
+    }
+
+    #[test]
+    fn index145() {
+        let m = Machine::from_str("[.#...###] (0,1,2,3,4,6,7) (2,3,4,5,6) (0,1,3,4,5,6) (0,2,3,4,5,6) (1,3,4,5,6) (2,3,4,5) {22,8,44,51,51,50,38,1}");
+        assert_eq!(m.get_part2_linalg(), 51);
+    }
+
+    #[test]
+    fn index90() {
+        // There is a bug where the searched solution does not actually satisfy all equations
+        let m = Machine::from_str("[.#.##.#.##] (1,7,8) (1,3,8) (0,1,2,3,4,5,6,9) (3,4,7,8,9) (1,2,4,8) (0,1,2,3,4,5,8,9) (0,2,5) (1,2,3,4,5,7,9) (0,1,2,3,4,5,6,8,9) (2,3,7) (5,7) {39,50,45,48,47,56,16,48,57,44}");
+        assert_eq!(m.get_part2_linalg(), 51);
+    }
+
+
+
+
+
+
+// Index 14:
+//"[####.#...#] (2,3,4,5,6,8) (2,6) (0,4,7) (2,5,7) (0,2,3,5,7,9) (0,1,2,4,8) (0,1,4,5,6,9) (1,4,7) (2) (0,1,2,4,5,9) (1,3,4,7,9) (0,2,3,5,8,9) (1,4,5,6,7,9) {52,60,56,45,84,77,64,37,34,73}";
+    //
+    // Index 18
+//[.#...#..] (0,1,5,7) (4,5) (0,6) (0,1,2,5,6,7) (0,1,2,4,6,7) (2,7) (0,2,5,7) (3,4,5) (0,1) {42,29,42,6,29,54,20,52}
+
 }
 
