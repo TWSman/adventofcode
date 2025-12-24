@@ -112,14 +112,6 @@ impl Display for Button {
 }
 
 
-#[derive(Debug)]
-struct Machine {
-    n_lights: usize,
-    target_lights: i32, // Target as binary mask
-    buttons: Vec<Button>,
-    joltages: Vec<i32>,
-}
-
 #[derive(Debug, PartialEq)]
 enum Comparison {
     Exact,
@@ -138,6 +130,60 @@ fn add_to_vector(vec: &[i32], ind: usize, val: i32) -> Vec<i32> {
     }).collect()
 }
 
+fn get_parity(vec: &[i32]) -> i32 {
+    vec.iter().enumerate().map(|(i,v)| {
+        if v % 2 == 1 {
+            2_i32.pow(i as u32)
+        } else {
+            0
+        }
+    }).sum()
+}
+
+
+fn subtract_and_divide_vectors(vec1: &[i32], vec2: &[i32]) -> Vec<i32> {
+    // Subtract vector 2 from vector 1
+    vec1.iter().enumerate().map(|(i,v)| {
+        let t = v - vec2[i];
+        assert_eq!(t %2, 0);
+        t / 2
+    }).collect()
+}
+
+
+fn get_patterns(buttons: &[Button]) -> BTreeMap<i32, Vec<(i32, i32)>> {
+    let mut patterns: BTreeMap<i32, Vec<(i32, i32)>> = BTreeMap::new();
+    let n = 2_i32.pow(buttons.len() as u32);
+    for i_opt in 0..n {
+        let mut s = 0;
+        let mut press_count: i32 = 0;
+        for (i_button, button) in buttons.iter().enumerate() {
+            // Check if bit at index 'i_button' is set
+            if ((i_opt >> i_button) & 1) == 1 {
+                press_count += 1;
+                s ^= button.changes;
+            }
+        }
+        if patterns.contains_key(&s) {
+            patterns.get_mut(&s).unwrap().push((i_opt, press_count));
+        } else {
+            patterns.insert(s, vec![(i_opt, press_count)]);
+        }
+    }
+    patterns
+}
+
+
+#[derive(Debug)]
+struct Machine {
+    n_lights: usize,
+    target_lights: i32, // Target as binary mask
+    buttons: Vec<Button>,
+    joltages: Vec<i32>,
+    // Pattern as binary mask and activations as binary mask
+    patterns: BTreeMap<i32, Vec<(i32, i32)>>,
+}
+
 
 impl Display for Machine {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -148,6 +194,7 @@ impl Display for Machine {
         write!(f, "{out}")
     }
 }
+
 
 impl Machine {
     fn from_str(ln: &str) -> Self {
@@ -182,9 +229,11 @@ impl Machine {
                 }
             }
         }
+        let patterns = get_patterns(&buttons);
         Self {n_lights,
             target_lights: target_lights.unwrap(),
             buttons,
+            patterns,
             joltages: joltages.unwrap(),
         }
     }
@@ -195,24 +244,56 @@ impl Machine {
     }
 
     fn get_part1(&self) -> i32 {
-        let n = 2_i32.pow(self.buttons.len() as u32);
-        // outer loop tests different options
-        (0..n).map(|i_opt| {
-            let mut s = 0;
-            let mut c = 0;
-            for i_button in 0..(self.buttons.len()){
+        match self.patterns.get(&self.target_lights) {
+            None => {
+                // No precalculated combination gives this parity pattern
+                panic!("The task is impossible");
+            }
+            Some(p) => {
+                // Loop over the precalculated combinations for this parity pattern
+                p.iter().map(|(_i, c)| *c).min().unwrap()
+            }
+        }
+    }
+
+    fn get_part2_parity(&self) -> i64 {
+        // Parity based solved for part2
+        println!("{}", self);
+        self.parity_solver(&self.joltages) as i64
+    }
+
+    fn parity_solver(&self, target: &[i32]) -> i32 {
+        // Get the parity map of the target
+        let parity = get_parity(target);
+
+        // Check the precalculated patterns to figure out which button combinations give
+        // this parity
+        if !self.patterns.contains_key(&parity) {
+            return 9999;
+        }
+        let combos = self.patterns.get(&parity).unwrap();
+        combos.iter().map(|(i_opt, press_count)| {
+            let mut activation = vec![0; self.buttons.len()];
+            for (i_button, _button) in self.buttons.iter().enumerate() {
                 // Check if bit at index 'i_button' is set
                 if ((i_opt >> i_button) & 1) == 1 {
-                    c += 1;
-                    s ^= self.buttons[i_button].changes;
+                    activation[i_button] = 1;
                 }
             }
-            if s == self.target_lights {
-                c
-            } else {
-                999
+            let sum = self.get_sum(&activation);
+            match compare_sum(target, &sum) {
+                Comparison::Exact => {
+                    *press_count
+                },
+                Comparison::Larger => {
+                    9999
+                },
+                Comparison::Smaller => {
+                    let new_target = subtract_and_divide_vectors(target, &sum);
+                    *press_count + 2 * self.parity_solver(&new_target)
+                },
             }
-        }).min().unwrap()
+        }).min().unwrap_or(9999)
     }
 
     fn get_part2_linalg(&self) -> i64 {
@@ -317,7 +398,7 @@ impl Machine {
             println!("{self}");
         }
         let matrix: Vec<Vec<i32>> = transpose(self.buttons.iter().map(|b| b.vector(self.n_lights)).collect());
-        let eqsys = EquationSystem::new(self.joltages.clone(), matrix.clone());
+        let eqsys = EquationSystem::new(self.joltages.clone(), matrix);
         let (res, sol) = solve_recursive(eqsys, verbose);
         if res == 9999 {
             return -1;
@@ -537,6 +618,21 @@ impl Machine {
     }
 }
 
+fn compare_sum(target: &[i32], x: &[i32]) -> Comparison {
+    // Compare given vector to the target
+    if target == x {
+        return Comparison::Exact
+    }
+    assert_eq!(target.len(), x.len());
+    for (i,xx) in x.iter().enumerate() {
+        if target[i] < *xx {
+            //println!("At index {}: target {} < sum {}", i, self.joltages[i], x[i]);
+            return Comparison::Larger
+        }
+    }
+    Comparison::Smaller
+}
+
 #[derive(Debug, Clone)]
 struct EquationSystem {
     target: Vec<i32>,
@@ -600,7 +696,7 @@ impl EquationSystem {
     }
 
     fn get_sum(&self) -> i32 {
-        self.solution.iter().map(|v| v.unwrap_or(999)).sum()
+        self.solution.iter().map(|v| v.unwrap_or(9999)).sum()
     }
 
     fn get_unique(&self) -> (Vec<Vec<i32>>, Vec<i32>) {
@@ -654,7 +750,7 @@ impl EquationSystem {
         self.matrix.iter().enumerate().map(|(i,v)| if v[xi] > 0 {
             self.target[i] 
         } else {
-                999
+                9999
             }).min().unwrap()
     }
 
@@ -912,14 +1008,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
     //dbg!(&machines);
     let part1 = machines.iter().map(|m| i64::from(m.get_part1())).sum();
     let part2 = machines.iter().enumerate().map(|(i,m)| {
-        let res = i64::from(m.algebraic_solver(0));
-        if res < 0 {
-            println!("Invalid solution for machine {i}, try linalg solver");
-            let r = m.get_part2_linalg();
-            assert!(r >= 0, "Linalg solver also failed");
-            println!("index {i:03}: part2: {r}");
-            return r;
-        }
+        let res = m.get_part2_parity();
         println!("index {i:03}: part2: {res}");
         res
     }).sum();
@@ -931,6 +1020,14 @@ fn read_contents(cont: &str) -> (i64, i64) {
 mod tests {
     use super::*;
 
+    #[test]
+    fn parity() {
+        let a = vec![1,2,3,4,5];
+        let b = vec![2,2,2,2,2];
+        assert_eq!(get_parity(&a), 0b10101);
+        assert_eq!(get_parity(&b), 0b00000);
+
+    }
 
     #[test]
     fn equation() {
@@ -1020,6 +1117,52 @@ mod tests {
         assert_eq!(read_contents(&a).1, 33);
     }
 
+    #[test]
+    fn part2_parity() {
+        let m = Machine::from_str("[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}");
+
+        assert_eq!(m.get_part2_parity(), 10);
+
+        let m = Machine::from_str("[...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}");
+        assert_eq!(m.get_part2_parity(), 12);
+
+        let m = Machine::from_str("[.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}");
+        assert_eq!(m.get_part2_parity(), 11);
+
+
+        let a="[.##.] (3) (1,3) (2) (2,3) (0,2) (0,1) {3,5,4,7}
+        [...#.] (0,2,3,4) (2,3) (0,4) (0,1,2) (1,2,3,4) {7,5,12,7,2}
+        [.###.#] (0,1,2,3,4) (0,3,4) (0,1,2,4,5) (1,2) {10,11,11,5,10,5}";
+        assert_eq!(read_contents(&a).1, 33);
+
+
+        let m = Machine::from_str("[##.####.#.] (1,2,3,4,5,6,7,8,9) (0,1,2,3,4,5,6,8,9) (2,5,7,8) (1,3,4,5,7,9) (2,8) (2,3,5,6,7,8,9) (0,4,5,6,7,8,9) (5,9) (0,1,2,3,4,6,7,8,9) (2,4,5,6,8) {28,40,49,48,48,54,42,48,56,63}");
+        assert_eq!(m.get_part2_parity(), 78);
+
+        let m = Machine::from_str("[#.....####] (6) (5,7,8) (0,1,3,4,9) (0,2,4,5,6,9) (1,2,8) (0,4,5,7) (4,6) (0,2,3,7,8,9) (1,5,6,9) (0,2,3) (0,2,3,4,6,7,8,9) (3,4,8) {57,31,44,54,68,54,52,48,62,47}");
+        assert_eq!(m.get_part2_parity(), 129);
+
+        let m = Machine::from_str("[#.#####.##] (3,4) (0,1,3,4,5,7,8,9) (1,2,3,4,5,6,7,9) (0,1,2,3,7) (0,1,2,3,5,7,8,9) (0,1,2,3,5,6,7,9) (0,1,3,4,6) (0,4,5,6,7,8,9) (1,3,4,9) (0,3,5,6,7,8) (1,2,3,4,7,8) {51,83,66,96,74,54,52,81,36,64}");
+        assert_eq!(m.get_part2_parity(), 107);
+
+        let m = Machine::from_str("[.#...#..] (0,1,5,7) (4,5) (0,6) (0,1,2,5,6,7) (0,1,2,4,6,7) (2,7) (0,2,5,7) (3,4,5) (0,1) {42,29,42,6,29,54,20,52}");
+        assert_eq!(m.get_part2_parity(), 74);
+
+        let m = Machine::from_str("[#...##] (0,1,3,4,5) (0,4,5) (1,2,3,4) (0,1,2) {132,30,23,13,121,115}");
+        assert_eq!(m.get_part2_parity(), 138);
+
+        let m = Machine::from_str("[#.#...#.] (5,6) (2,3) (1,4,5,6,7) (2,3,6) (1,2,3,4,6,7) (3,4,5,6) (0,1,3,4,7) {19,36,183,222,56,35,55,36}");
+        assert_eq!(m.get_part2_parity(), 237);
+
+        let m = Machine::from_str("[.#...###] (0,1,2,3,4,6,7) (2,3,4,5,6) (0,1,3,4,5,6) (0,2,3,4,5,6) (1,3,4,5,6) (2,3,4,5) {22,8,44,51,51,50,38,1}");
+        assert_eq!(m.get_part2_parity(), 51);
+
+        let m = Machine::from_str("[.#.##.#.##] (1,7,8) (1,3,8) (0,1,2,3,4,5,6,9) (3,4,7,8,9) (1,2,4,8) (0,1,2,3,4,5,8,9) (0,2,5) (1,2,3,4,5,7,9) (0,1,2,3,4,5,6,8,9) (2,3,7) (5,7) {39,50,45,48,47,56,16,48,57,44}");
+        assert_eq!(m.get_part2_parity(), 91);
+
+        let m = Machine::from_str("[.##..#...#] (2,3) (1,3,5,7,8,9) (2,3,4,5,6,7,9) (6,8) (0,1,9) (0,1,2,3,4,7,9) (0,5,9) (0,1,2,3,5,6,7,8) (0,1,2,6,8) (2,3,7,8) (2,3,6,7,9) (0,3,5,6,8,9) (0,1,2,3,6,7,8,9) {90,71,54,75,5,78,87,56,87,98}");
+        assert_eq!(m.get_part2_parity(), 144);
+    }
 
     #[test]
     fn index8() {
@@ -1076,4 +1219,3 @@ mod tests {
         assert_eq!(m.algebraic_solver(1), 144);
     }
 }
-
