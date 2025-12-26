@@ -85,6 +85,26 @@ impl Dir{
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct Vec2D {
+    pub x: i64,
+    pub y: i64,
+}
+
+impl Vec2D {
+    pub fn new(x: i64, y: i64) -> Self {
+        Self {x,y}
+    }
+
+    pub fn manhattan(&self, other: &Self) -> i64 {
+        (self.x - other.x).abs() + (self.y - other.y).abs()
+    }
+
+    pub fn distance_to_y(&self, y: i64) -> i64 {
+        (self.y - y).abs()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -92,5 +112,24 @@ mod tests {
     #[test]
     fn it_works() {
         assert_eq!(Dir::N.ccw(), Dir::W);
+    }
+
+    #[test]
+    fn vec2d() {
+        let a = Vec2D{x: 10, y: 10};
+        let b = Vec2D{x: 20, y: 20};
+        assert_eq!(a.manhattan(&b),20);
+        assert_eq!(a.manhattan(&a), 0);
+        assert_eq!(b.manhattan(&a),20);
+
+        assert_eq!(a.distance_to_y(20),10);
+        assert_eq!(a.distance_to_y(0),10);
+        assert_eq!(a.distance_to_y(10),0);
+
+        let a = Vec2D{x: -10, y: -10};
+        let b = Vec2D{x: -20, y: -20};
+        assert_eq!(a.manhattan(&b),20);
+        assert_eq!(a.manhattan(&a), 0);
+        assert_eq!(b.manhattan(&a),20);
     }
 }
