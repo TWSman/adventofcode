@@ -32,6 +32,7 @@ fn read_contents(cont: &str) -> (i64, i64) {
 
 
 fn get_score(list: &[i64]) -> i64 {
+    // Scoring: find the index of 0, then sum the values at index +1000, +2000, +3000 (mod length)
     let n = list.len();
     let startind = list.iter().enumerate().find(|(_i, v)| **v == 0).unwrap().0;
     list[(startind + 1000) % n] + list[(startind + 2000) % n] + list[(startind + 3000) % n]
