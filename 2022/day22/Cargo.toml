@@ -1,0 +1,11 @@
+[package]
+name = "day22"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.54", features = ["derive"] }
+colored = "3.0.0"
+inline_colorization = "0.1.6"
+regex = "1.12.2"
+shared = { path = "../../shared" }
