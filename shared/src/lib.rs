@@ -22,6 +22,46 @@ pub enum Diag {
     NW,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter)]
+pub enum AllDir {
+    N,
+    NE,
+    E,
+    SE,
+    S,
+    SW,
+    W,
+    NW,
+}
+
+impl AllDir {
+    pub const fn get_dir(self) -> (i64, i64) {
+        match self {
+            Self::NW => (-1, -1),
+            Self::N => (0, -1),
+            Self::NE => (1, -1),
+            Self::E => (1, 0),
+            Self::SE => (1, 1),
+            Self::S => (0, 1),
+            Self::SW => (-1, 1),
+            Self::W => (-1, 0),
+        }
+    }
+    pub const fn get_dir_true(self) -> (i64, i64) {
+        match self {
+            Self::NW => (-1, 1),
+            Self::N => (0, 1),
+            Self::NE => (1, 1),
+            Self::E => (1, 0),
+            Self::SE => (1, -1),
+            Self::S => (0, -1),
+            Self::SW => (-1, -1),
+            Self::W => (-1, 0),
+        }
+    }
+}
+
+
 impl Diag {
     pub const fn get_dir(self) -> (i64, i64) {
         match self {
@@ -29,6 +69,16 @@ impl Diag {
             Self::SE => (1, 1),
             Self::SW => (-1, 1),
             Self::NW => (-1, -1),
+        }
+    }
+
+    pub const fn get_dir_true(self) -> (i64, i64) {
+        // Alternate version with y increasing upwards (North is +y)
+        match self {
+            Self::NE => (1, 1),
+            Self::SE => (1, -1),
+            Self::SW => (-1, -1),
+            Self::NW => (-1, 1),
         }
     }
 }
@@ -60,6 +110,16 @@ impl Dir{
             Self::N => (0, -1),
             Self::E => (1, 0),
             Self::S => (0, 1),
+            Self::W => (-1, 0),
+        }
+    }
+
+    pub const fn get_dir_true(self) -> (i64, i64) {
+        // Alternate version with y increasing upwards (North is +y)
+        match self {
+            Self::N => (0, 1),
+            Self::E => (1, 0),
+            Self::S => (0, -1),
             Self::W => (-1, 0),
         }
     }

@@ -19,7 +19,6 @@ fn main() {
     let contents = fs::read_to_string(args.input).expect("Should have been able to read the file");
     let (part1, part2) = read_contents(&contents, 50);
     println!("Part 1 answer is {part1}");
-    // 114329
     println!("Part 2 answer is {part2}");
 }
 
