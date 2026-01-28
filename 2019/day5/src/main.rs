@@ -29,7 +29,7 @@ fn main() {
 fn get_result(vals: Vec<i64>, input: i64) -> i64 {
     let mut p = Program::from_list(vals);
     p.add_input(input);
-    p.run();
+    p.run_until_stop();
     p.get_output(-1)
 }
 

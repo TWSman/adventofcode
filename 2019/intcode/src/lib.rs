@@ -1,15 +1,20 @@
 use std::time::Instant;
+use num_enum::TryFromPrimitive;
 
 
 #[derive(Debug, Clone)]
 pub struct Program {
-    vals:  Vec<i64>,
-    initial_state:  Vec<i64>,
-    verbose: usize,
+    // The main internal state
+    vals:  Vec<i64>, // Main memory of the program
+    pointer: usize, // Instruction pointer
+    relative_base: i64,
+
+    // Other helpful stuff, related to I/O, verbosity and resetting memory
+    input_pointer: usize,
     inputs: Vec<i64>,
     outputs: Vec<i64>,
-    pointer: usize,
-    input_pointer: usize,
+    verbose: usize,
+    initial_state: Vec<i64>,
 }
 
 const OP_VERBOSE: usize = 2;
@@ -19,12 +24,13 @@ impl Program {
     pub fn from_list(initial_state: Vec<i64>) -> Self {
         Program {
             vals: initial_state.clone(),
-            initial_state: initial_state.clone(),
-            verbose: 1,
+            pointer: 0,
+            relative_base: 0,
+            input_pointer: 0,
             inputs: Vec::new(),
             outputs: Vec::new(),
-            pointer: 0,
-            input_pointer: 0,
+            verbose: 1,
+            initial_state: initial_state.clone(),
         }
     }
 
@@ -85,153 +91,145 @@ impl Program {
             println!("\nStarting execution");
         }
         loop {
-            let opcode = self.vals[self.pointer] % 100;
-            let op = Operation::new(opcode.try_into().unwrap());
-            let mod1 = (self.vals[self.pointer] / 100) % 10;
-            let mod2 = (self.vals[self.pointer] / 1000) % 10;
-            let mod3 = (self.vals[self.pointer] / 10000) % 10;
+            let opcode = self.vals[self.pointer];
+            let op = Operation::new((opcode % 100).try_into().unwrap()).unwrap();
+
+            let mods = vec![(self.vals[self.pointer] / 100) % 10,
+                (self.vals[self.pointer] / 1000) % 10,
+                (self.vals[self.pointer] / 10000) % 10];
 
             if self.verbose >= 2 {
-                dbg!(self.pointer, opcode, mod1, mod2, mod3);
+                println!();
+                dbg!(self.pointer, op, opcode, &mods);
+            }
+
+            let (inputs, outputs, total) = op.get_parameters();
+            assert!(outputs <= 1); // This implementation only supports one output parameter
+            let param: Vec<i64> = (self.pointer+1..self.pointer+1+inputs).enumerate().map(|(i, pi)| {
+                if mods[i] == 0 {
+                    self.vals[self.vals[pi as usize] as usize]
+                } else {
+                    self.vals[pi as usize]
+                }
+            }).collect();
+            let out_ind: usize = if outputs == 1 {
+                self.vals[self.pointer + 1 + inputs].try_into().expect("Output index must be positive")
+            } else {
+                0
+            };
+            if self.verbose >= 2 {
+                dbg!(&param);
+                dbg!(&out_ind);
             }
 
             match op {
-                Some(Operation::Sum) => {
-
-                    let in1 = self.vals[self.pointer+1] as usize;
-                    let in2 = self.vals[self.pointer+2] as usize;
-                    let out = self.vals[self.pointer+3] as usize;
-
-                    let a = if mod1 == 0 { self.vals[in1] } else { in1 as i64 };
-                    let b = if mod2 == 0 { self.vals[in2] } else { in2 as i64 };
+                Operation::Sum => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Adding {} and {} into *{}", a, b, out);
+                        println!("Adding {} and {} into *{}", param[0], param[1], out_ind);
                     }
-                    self.vals[out] = a + b;
-                    self.pointer += 4;
+                    self.vals[out_ind] = param[0] + param[1];
                 },
-                Some(Operation::Product) => {
-                    let in1 = self.vals[self.pointer+1] as usize;
-                    let in2 = self.vals[self.pointer+2] as usize;
-                    let out = self.vals[self.pointer+3] as usize;
-                    let a = if mod1 == 0 { self.vals[in1] } else { in1 as i64 };
-                    let b = if mod2 == 0 { self.vals[in2] } else { in2 as i64 };
+                Operation::Product => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Multiplying {} and {} into *{}", a, b, out);
+                        println!("Multiplying {} and {} into *{}", param[0], param[1], out_ind);
                     }
-                    self.vals[out] = a * b;
-                    self.pointer += 4;
+                    self.vals[out_ind] = param[0] * param[1];
                 },
 
-                Some(Operation::Input) => {
+                Operation::Input => {
                     let input = self.inputs[self.input_pointer];
                     self.input_pointer += 1;
-                    let out = self.vals[self.pointer+1] as usize;
-                    self.vals[out] = input;
-                    self.pointer += 2;
-                }
-                Some(Operation::Output) => {
-                    let out = self.vals[self.pointer+1];
-                    let out_val = if mod1 == 0 {self.vals[out as usize]} else { out};
                     if self.verbose >= 1 {
-                        println!("Output: {}", out_val);
+                        println!("Read input: {} to *{}", input, out_ind);
                     }
-                    self.outputs.push(out_val);
-                    self.pointer += 2;
-                    return Some(out_val);
+                    self.vals[out_ind] = input;
                 }
 
-                Some(Operation::JumpIfTrue) => {
-                    let ind1 = self.vals[self.pointer + 1];
-                    let ind2 = self.vals[self.pointer + 2];
-                    let val1 = if mod1 == 0 { self.vals[ind1 as usize] } else { ind1};
-                    let val2 = if mod2 == 0 { self.vals[ind2 as usize] } else { ind2};
-                    if val1 != 0 {
-                        self.pointer = val2 as usize;
+                Operation::Output => {
+                    if self.verbose >= 1 {
+                        println!("Program Outputs: {}", param[0]);
+                    }
+                    self.outputs.push(param[0]);
+                    self.pointer += 2; // Advance pointer before returning. Otherwise pointer would
+                    // not change
+                    return Some(param[0]);
+                }
+
+                Operation::JumpIfTrue => {
+                    if param[0] != 0 {
+                        self.pointer = param[1].try_into().unwrap();
+                        continue; // Continue avoids advancing the pointer below
+                    }
+                }
+
+                Operation::JumpIfFalse => {
+                    if param[0] == 0 {
+                        self.pointer = param[1].try_into().unwrap();
+                        continue; // Continue avoids advancing the pointer below
+                    }
+                }
+
+                Operation::LessThan => {
+                    if param[0] < param[1] {
+                        self.vals[out_ind] = 1;
                     } else {
-                        self.pointer += 3;
+                        self.vals[out_ind] = 0;
                     }
                 }
-
-                Some(Operation::JumpIfFalse) => {
-                    let ind1 = self.vals[self.pointer + 1];
-                    let ind2 = self.vals[self.pointer + 2];
-                    let val1 = if mod1 == 0 { self.vals[ind1 as usize] } else { ind1};
-                    let val2 = if mod2 == 0 { self.vals[ind2 as usize] } else { ind2};
-                    if val1 == 0 {
-                        self.pointer = val2 as usize;
+                Operation::Equals => {
+                    if param[0] == param[1] {
+                        self.vals[out_ind] = 1;
                     } else {
-                        self.pointer += 3;
+                        self.vals[out_ind] = 0;
                     }
                 }
 
-                Some(Operation::LessThan) => {
-                    let ind1 = self.vals[self.pointer+1] as usize;
-                    let ind2 = self.vals[self.pointer+2] as usize;
-                    let out = self.vals[self.pointer+3] as usize;
-
-                    let val1 = if mod1 == 0 { self.vals[ind1] } else { ind1 as i64 };
-                    let val2 = if mod2 == 0 { self.vals[ind2] } else { ind2 as i64 };
-                    if val1 < val2 {
-                        self.vals[out] = 1;
-                    } else {
-                        self.vals[out] = 0;
-                    }
-                    self.pointer += 4;
-                }
-                Some(Operation::Equals) => {
-                    let ind1 = self.vals[self.pointer+1] as usize;
-                    let ind2 = self.vals[self.pointer+2] as usize;
-                    let out = self.vals[self.pointer+3] as usize;
-
-                    let val1 = if mod1 == 0 { self.vals[ind1] } else { ind1 as i64 };
-                    let val2 = if mod2 == 0 { self.vals[ind2] } else { ind2 as i64 };
-                    if val1 == val2 {
-                        self.vals[out] = 1;
-                    } else {
-                        self.vals[out] = 0;
-                    }
-                    self.pointer += 4;
-                }
-
-                Some(Operation::Stop) => {
+                Operation::AdjustRelativeBase => {
+                    self.relative_base += param[0];
+                },
+                Operation::Stop => {
                     let elapsed = start.elapsed();
                     if self.verbose >= STOP_VERBOSE {
                         println!("Stopping execution after {:.2?}", elapsed);
                     }
                     return None;
                 },
-                None => panic!("Unknown opcode {}", opcode),
             }
+            // Unless there was a jump, advance the pointer
+            self.pointer += total;
         }
     }
 }
 
+#[repr(usize)]
+#[derive(Debug, TryFromPrimitive, Copy, Clone, Eq, PartialEq)]
 enum Operation {
-    Sum,
-    Product,
-    Input,
-    Output,
-    JumpIfTrue,
-    JumpIfFalse,
-    LessThan,
-    Equals,
-    Stop,
+    Sum = 1, // 1
+    Product = 2, // 2
+    Input = 3, // 3
+    Output = 4, // 4
+    JumpIfTrue = 5, // 5
+    JumpIfFalse = 6, // 6
+    LessThan = 7, // 7
+    Equals = 8, // 8
+    AdjustRelativeBase = 9, // 9
+    Stop = 99,
 }
 
 impl Operation {
     fn new(code: usize) -> Option<Self> {
-        match code {
-            1 => Some(Operation::Sum),
-            2 => Some(Operation::Product),
-            3 => Some(Operation::Input),
-            4 => Some(Operation::Output),
-            5 => Some(Operation::JumpIfTrue),
-            6 => Some(Operation::JumpIfFalse),
-            7 => Some(Operation::LessThan),
-            8 => Some(Operation::Equals),
-            99 => Some(Operation::Stop),
-            _ => None,
+        Self::try_from(code).ok()
+    }
+
+    fn get_parameters(&self) -> (usize, usize, usize) {
+        // Get the size of the operation in memory (how much pointer should advance)
+        match self {
+            Self::Sum | Self::Product | Self::Equals | Self::LessThan  => (2,1,4), // Two inputs, one output
+            Self::Output => (1,0,2), // One input, no output (to memory)
+            Self::Input => (0,1,2), // No inputs, one output
+            Self::AdjustRelativeBase => (1,0,2), // One input, adjusts relative base
+            Self::JumpIfTrue | Self::JumpIfFalse => (2,0,3), // Two inputs, no outputs
+            Self::Stop => (0,0,1),
         }
     }
 }
@@ -401,5 +399,34 @@ mod tests {
         p1.run_until_stop();
         assert_eq!(p1.get_outputs(), vec![1000]);
     }
-}
 
+    #[test]
+    fn extra_memory() {
+        // This should produce a copy of itself as output
+        let mut p = Program::from_list(vec![109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99]);
+        p.set_verbose(2);
+        p.run_until_stop();
+        assert_eq!(p.get_outputs(), vec![109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99]);
+    }
+
+    #[test]
+    fn large_numbers() {
+        let mut p = Program::from_list(vec![104,1125899906842624,99]);
+        assert_eq!(p.run(), Some(1125899906842624));
+
+        // Multiplies 34915192 by itself and outputs the result
+        let mut p = Program::from_list(vec![1102,34915192,34915192,7,4,7,99,0]);
+        assert_eq!(p.run(), Some(34915192 * 34915192));
+    }
+
+    #[test]
+    fn inputs() {
+        let mut p = Program::from_list(vec![3,5,3,6,99,0,0,0,0,0,0,0,0]);
+        p.add_input(42); // Input 42, should go to 5
+        p.add_input(1729); // Input 1729, should go to 6
+        p.set_verbose(0);
+        p.run();
+        assert_eq!(p.vals[5], 42);
+        assert_eq!(p.vals[6], 1729);
+    }
+}
