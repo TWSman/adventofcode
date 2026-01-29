@@ -15,22 +15,27 @@ pub struct Program {
     outputs: Vec<i64>,
     verbose: usize,
     initial_state: Vec<i64>,
+    step_counter: usize,
 }
 
+const DEBUG_VERBOSE: usize = 3;
 const OP_VERBOSE: usize = 2;
 const STOP_VERBOSE: usize = 1;
 
 impl Program {
     pub fn from_list(initial_state: Vec<i64>) -> Self {
+        let mut stat = initial_state.clone();
+        stat.resize(2048, 0);
         Program {
-            vals: initial_state.clone(),
+            vals: stat.clone(),
             pointer: 0,
             relative_base: 0,
             input_pointer: 0,
             inputs: Vec::new(),
             outputs: Vec::new(),
             verbose: 1,
-            initial_state: initial_state.clone(),
+            initial_state: stat,
+            step_counter: 0,
         }
     }
 
@@ -77,30 +82,48 @@ impl Program {
 
     pub fn run_until_stop(&mut self) {
         loop {
-            let res = self.run();
+            let res = self.run(None);
             if res.is_none() {
                 break;
             }
         }
     }
 
-
-    pub fn run(&mut self) -> Option<i64> {
+    pub fn run(&mut self, steps: Option<usize>) -> Option<i64> {
         let start = Instant::now();
-        if self.verbose >= 1 {
+        if self.verbose >= 1 && self.step_counter == 0 {
             println!("\nStarting execution");
         }
+        let mut step_counter = 0;
         loop {
+            step_counter += 1;
+            if let Some(st) = steps {
+                if step_counter > st {
+                    return None;
+                }
+            }
+            self.step_counter += 1;
+            if self.verbose >= OP_VERBOSE {
+                println!("\n-- Step {} --", self.step_counter);
+            }
             let opcode = self.vals[self.pointer];
             let op = Operation::new((opcode % 100).try_into().unwrap()).unwrap();
 
             let mods = vec![(self.vals[self.pointer] / 100) % 10,
                 (self.vals[self.pointer] / 1000) % 10,
-                (self.vals[self.pointer] / 10000) % 10];
+                (self.vals[self.pointer] / 10000) % 10,
+                (self.vals[self.pointer] / 100000) % 10,
+            ];
 
-            if self.verbose >= 2 {
+
+
+            if self.verbose >= DEBUG_VERBOSE {
                 println!();
                 dbg!(self.pointer, op, opcode, &mods);
+            }
+
+            if self.verbose >= OP_VERBOSE {
+                println!("Executing operation: {:?} at pointer {}", op, self.pointer);
             }
 
             let (inputs, outputs, total) = op.get_parameters();
@@ -108,16 +131,27 @@ impl Program {
             let param: Vec<i64> = (self.pointer+1..self.pointer+1+inputs).enumerate().map(|(i, pi)| {
                 if mods[i] == 0 {
                     self.vals[self.vals[pi as usize] as usize]
-                } else {
+                } else if mods[i] == 1 {
                     self.vals[pi as usize]
+                } else {
+                    // Relative mode
+                    self.vals[(self.relative_base + self.vals[pi as usize]) as usize]
                 }
             }).collect();
-            let out_ind: usize = if outputs == 1 {
-                self.vals[self.pointer + 1 + inputs].try_into().expect("Output index must be positive")
-            } else {
+
+            let output_mode = mods[inputs];
+            let out_ind: usize = if outputs == 0 {
                 0
+            } else if  output_mode == 0 {
+                self.vals[self.pointer + 1 + inputs].try_into().expect("Output index must be positive")
+            } else if output_mode == 2 {
+                let tmp = self.vals[self.pointer + 1 + inputs];
+                (self.relative_base + tmp).try_into().expect("Output index must be positive")
+            } else {
+                panic!("Invalid output mode");
             };
-            if self.verbose >= 2 {
+
+            if self.verbose >= DEBUG_VERBOSE {
                 dbg!(&param);
                 dbg!(&out_ind);
             }
@@ -125,13 +159,13 @@ impl Program {
             match op {
                 Operation::Sum => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Adding {} and {} into *{}", param[0], param[1], out_ind);
+                        println!("Adding {} and {} = {} into *{}", param[0], param[1], param[0] + param[1], out_ind);
                     }
                     self.vals[out_ind] = param[0] + param[1];
                 },
                 Operation::Product => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Multiplying {} and {} into *{}", param[0], param[1], out_ind);
+                        println!("Multiplying {} and {} = {} into *{}", param[0], param[1], param[0] * param[1], out_ind);
                     }
                     self.vals[out_ind] = param[0] * param[1];
                 },
@@ -139,14 +173,14 @@ impl Program {
                 Operation::Input => {
                     let input = self.inputs[self.input_pointer];
                     self.input_pointer += 1;
-                    if self.verbose >= 1 {
+                    if self.verbose >= OP_VERBOSE {
                         println!("Read input: {} to *{}", input, out_ind);
                     }
                     self.vals[out_ind] = input;
                 }
 
                 Operation::Output => {
-                    if self.verbose >= 1 {
+                    if self.verbose >= OP_VERBOSE {
                         println!("Program Outputs: {}", param[0]);
                     }
                     self.outputs.push(param[0]);
@@ -156,7 +190,13 @@ impl Program {
                 }
 
                 Operation::JumpIfTrue => {
+                    if self.verbose >= OP_VERBOSE {
+                        println!("Checking if {} != 0", param[0]);
+                    }
                     if param[0] != 0 {
+                        if self.verbose >= OP_VERBOSE {
+                            println!("Jumping to {}", param[1]);
+                        }
                         self.pointer = param[1].try_into().unwrap();
                         continue; // Continue avoids advancing the pointer below
                     }
@@ -170,6 +210,9 @@ impl Program {
                 }
 
                 Operation::LessThan => {
+                    if self.verbose >= OP_VERBOSE {
+                        println!("Checking if {} < {}", param[0], param[1]);
+                    }
                     if param[0] < param[1] {
                         self.vals[out_ind] = 1;
                     } else {
@@ -177,6 +220,9 @@ impl Program {
                     }
                 }
                 Operation::Equals => {
+                    if self.verbose >= OP_VERBOSE {
+                        println!("Checking if {} == {}", param[0], param[1]);
+                    }
                     if param[0] == param[1] {
                         self.vals[out_ind] = 1;
                     } else {
@@ -185,6 +231,9 @@ impl Program {
                 }
 
                 Operation::AdjustRelativeBase => {
+                    if self.verbose >= OP_VERBOSE {
+                        println!("Adjusting relative base from {} by {}", self.relative_base, param[0]);
+                    }
                     self.relative_base += param[0];
                 },
                 Operation::Stop => {
@@ -243,35 +292,34 @@ mod tests {
     fn basics() {
         let a = "1,0,0,3,99";
         let p = Program::new(a);
-        assert_eq!(p.vals, vec![1,0,0,3,99]);
+        assert_eq!(p.vals[..5], vec![1,0,0,3,99]);
 
         // Does a sum and a product
         let b = "1,9,10,3,2,3,11,0,99,30,40,50";
         let mut p = Program::new(b);
-        assert_eq!(p.vals, vec![1,9,10,3,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![1,9,10,3,2,3,11,0,99,30,40,50]);
         p.run_until_stop();
-        assert_eq!(p.vals, vec![3500,9,10,70,2,3,11,0,99,30,40,50]);
-        
+        assert_eq!(p.vals[..12], vec![3500,9,10,70,2,3,11,0,99,30,40,50]);
 
         // Basic sum
         let mut p = Program::new("1,0,0,0,99");
         p.run_until_stop();
-        assert_eq!(p.vals, vec![2,0,0,0,99]);
+        assert_eq!(p.vals[..5], vec![2,0,0,0,99]);
         
         // Basic product
         let mut p = Program::new("2,3,0,3,99");
         p.run_until_stop();
-        assert_eq!(p.vals, vec![2,3,0,6,99]);
+        assert_eq!(p.vals[..5], vec![2,3,0,6,99]);
 
         // Basic product
         let mut p = Program::new("2,4,4,5,99,0");
         p.run_until_stop();
-        assert_eq!(p.vals, vec![2,4,4,5,99,9801]);
+        assert_eq!(p.vals[..6], vec![2,4,4,5,99,9801]);
         
         //  Another sum
         let mut p = Program::new("1,1,1,4,99,5,6,0,99");
         p.run_until_stop();
-        assert_eq!(p.vals,  vec![30,1,1,4, 2,5,6,0,99]);
+        assert_eq!(p.vals[..9],  vec![30,1,1,4, 2,5,6,0,99]);
     }
 
     #[test] 
@@ -279,14 +327,14 @@ mod tests {
         // Does a sum and a product
         let b = "1,9,10,3,2,3,11,0,99,30,40,50";
         let mut p = Program::new(b);
-        assert_eq!(p.vals, vec![1,9,10,3,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![1,9,10,3,2,3,11,0,99,30,40,50]);
         p.run_until_stop();
-        assert_eq!(p.vals, vec![3500,9,10,70,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![3500,9,10,70,2,3,11,0,99,30,40,50]);
 
         p.add_input(42);
         assert_eq!(p.inputs, vec![42]);
         p.reset();
-        assert_eq!(p.vals, vec![1,9,10,3,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![1,9,10,3,2,3,11,0,99,30,40,50]);
         assert_eq!(p.inputs, vec![]);
     }
 
@@ -303,7 +351,6 @@ mod tests {
         p2.add_input(7);
         p2.run_until_stop();
         assert_eq!(p2.get_outputs(), vec![0]);
-
 
         // Immediate mode
         let p = Program::from_list(vec![3,3,1108,-1,8,3,4,3,99]);
@@ -355,7 +402,7 @@ mod tests {
 
         p1.reset();
         p1.add_input(0);
-        assert_eq!(p1.run(), Some(0));
+        assert_eq!(p1.run(None), Some(0));
 
         let mut p2 = p.clone();
         p2.add_input(7);
@@ -364,7 +411,7 @@ mod tests {
 
         p2.reset();
         p2.add_input(7);
-        assert_eq!(p2.run(), Some(1));
+        assert_eq!(p2.run(None), Some(1));
 
         let p = Program::from_list(vec![3,3,1105,-1,9,1101,0,0,12,4,12,99,1]);
         let mut p1 = p.clone();
@@ -412,11 +459,11 @@ mod tests {
     #[test]
     fn large_numbers() {
         let mut p = Program::from_list(vec![104,1125899906842624,99]);
-        assert_eq!(p.run(), Some(1125899906842624));
+        assert_eq!(p.run(None), Some(1125899906842624));
 
         // Multiplies 34915192 by itself and outputs the result
         let mut p = Program::from_list(vec![1102,34915192,34915192,7,4,7,99,0]);
-        assert_eq!(p.run(), Some(34915192 * 34915192));
+        assert_eq!(p.run(None), Some(34915192 * 34915192));
     }
 
     #[test]
@@ -424,9 +471,56 @@ mod tests {
         let mut p = Program::from_list(vec![3,5,3,6,99,0,0,0,0,0,0,0,0]);
         p.add_input(42); // Input 42, should go to 5
         p.add_input(1729); // Input 1729, should go to 6
-        p.set_verbose(0);
-        p.run();
+        p.run(None);
         assert_eq!(p.vals[5], 42);
         assert_eq!(p.vals[6], 1729);
     }
+
+    #[test]
+    fn relative_output() {
+        // Checks that having a relative mode output works correctly
+        // i.e. Output index is given in relative mode
+        let mut p = Program::from_list(vec![
+            1101,0,3,1000,
+            109,994,
+            209,6,
+            9,1000,
+            203,0,
+            99]);
+
+        p.set_verbose(2);
+        p.add_input(1);
+
+        // 1101,0,3,1000,
+        p.run(Some(1));
+        assert_eq!(p.vals[1000], 3);
+        assert_eq!(p.pointer, 4);
+
+        // 109,994, Adjust relative base, absolute, 994
+        p.run(Some(1));
+        assert_eq!(p.relative_base, 994);
+        assert_eq!(p.pointer, 6);
+
+        // 209,6, Adjust relative base, relative, 6 (i.e. at 1000)
+        p.run(Some(1));
+        assert_eq!(p.relative_base, 997);
+        assert_eq!(p.pointer, 8);
+
+        //    209,6, Adjust relative base, relative, 3, which is *1000, which is 3
+        p.run(Some(1));
+        assert_eq!(p.relative_base, 1000);
+        assert_eq!(p.pointer, 10);
+        //    203,0, Read Input, relative mode to *1000
+        p.run(Some(1));
+        assert_eq!(p.inputs, vec![1]);
+        assert_eq!(p.pointer, 12);
+        assert_eq!(p.vals[1000], 1);
+
+        // Next should be stop
+        assert_eq!(p.run(None), None);
+        // Pointer shouldn't have moved
+        assert_eq!(p.pointer, 12);
+    }
+
+
 }

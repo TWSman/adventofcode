@@ -31,7 +31,7 @@ fn get_part1(mut vals: Vec<i64>) -> i64 {
     vals[1] = 12;
     vals[2] = 2;
     let mut p = Program::from_list(vals);
-    p.run();
+    p.run(None);
     p.get_index(0)
 }
 
@@ -42,7 +42,7 @@ fn get_part2(vals: Vec<i64>, target: i64) -> i64 {
         for verb in 0..100 {
             p.set_index(1, noun);
             p.set_index(2, verb);
-            p.run();
+            p.run(None);
             if p.get_index(0) == target {
                 println!("Found noun {} and verb {}", noun, verb);
                 return 100 * noun + verb;

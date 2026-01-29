@@ -68,7 +68,7 @@ fn try_sequence_feedback(program: &Program, phase_settings: &[&i64]) -> i64 {
         for p in programs.iter_mut() {
             // Next input is the previous output, or 0 for the first amplifier
             p.add_input(input_signal);
-            res = p.run();
+            res = p.run(None);
             if res.is_none() {
                 // Program has halted
                 break;
