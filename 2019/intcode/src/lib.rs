@@ -239,7 +239,7 @@ impl Program {
                 Operation::Stop => {
                     let elapsed = start.elapsed();
                     if self.verbose >= STOP_VERBOSE {
-                        println!("Stopping execution after {:.2?}", elapsed);
+                        println!("Stopping execution after {:.2?} and {} steps", elapsed, self.step_counter);
                     }
                     return None;
                 },
