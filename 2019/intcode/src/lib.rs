@@ -22,10 +22,19 @@ const DEBUG_VERBOSE: usize = 3;
 const OP_VERBOSE: usize = 2;
 const STOP_VERBOSE: usize = 1;
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProgramState {
+    Running,
+    Output(i64),
+    WaitingForInput,
+    Stopped,
+    Unknown,
+}
+
 impl Program {
     pub fn from_list(initial_state: Vec<i64>) -> Self {
         let mut stat = initial_state.clone();
-        stat.resize(2048, 0);
+        stat.resize(4096, 0);
         Program {
             vals: stat.clone(),
             pointer: 0,
@@ -83,13 +92,13 @@ impl Program {
     pub fn run_until_stop(&mut self) {
         loop {
             let res = self.run(None);
-            if res.is_none() {
+            if res == ProgramState::Stopped {
                 break;
             }
         }
     }
 
-    pub fn run(&mut self, steps: Option<usize>) -> Option<i64> {
+    pub fn run(&mut self, steps: Option<usize>) -> ProgramState {
         let start = Instant::now();
         if self.verbose >= 1 && self.step_counter == 0 {
             println!("\nStarting execution");
@@ -99,7 +108,7 @@ impl Program {
             step_counter += 1;
             if let Some(st) = steps {
                 if step_counter > st {
-                    return None;
+                    return ProgramState::Running
                 }
             }
             self.step_counter += 1;
@@ -171,22 +180,28 @@ impl Program {
                 },
 
                 Operation::Input => {
+                    if self.input_pointer >= self.inputs.len() {
+                        if self.verbose >= STOP_VERBOSE {
+                            println!("No input available, pausing execution");
+                        }
+                        return ProgramState::WaitingForInput;
+                    }
                     let input = self.inputs[self.input_pointer];
                     self.input_pointer += 1;
-                    if self.verbose >= OP_VERBOSE {
+                    if self.verbose >= STOP_VERBOSE {
                         println!("Read input: {} to *{}", input, out_ind);
                     }
                     self.vals[out_ind] = input;
                 }
 
                 Operation::Output => {
-                    if self.verbose >= OP_VERBOSE {
+                    if self.verbose >= STOP_VERBOSE {
                         println!("Program Outputs: {}", param[0]);
                     }
                     self.outputs.push(param[0]);
                     self.pointer += 2; // Advance pointer before returning. Otherwise pointer would
                     // not change
-                    return Some(param[0]);
+                    return ProgramState::Output(param[0]);
                 }
 
                 Operation::JumpIfTrue => {
@@ -241,7 +256,7 @@ impl Program {
                     if self.verbose >= STOP_VERBOSE {
                         println!("Stopping execution after {:.2?} and {} steps", elapsed, self.step_counter);
                     }
-                    return None;
+                    return ProgramState::Stopped;
                 },
             }
             // Unless there was a jump, advance the pointer
@@ -402,7 +417,7 @@ mod tests {
 
         p1.reset();
         p1.add_input(0);
-        assert_eq!(p1.run(None), Some(0));
+        assert_eq!(p1.run(None), ProgramState::Output(0));
 
         let mut p2 = p.clone();
         p2.add_input(7);
@@ -411,7 +426,7 @@ mod tests {
 
         p2.reset();
         p2.add_input(7);
-        assert_eq!(p2.run(None), Some(1));
+        assert_eq!(p2.run(None), ProgramState::Output(1));
 
         let p = Program::from_list(vec![3,3,1105,-1,9,1101,0,0,12,4,12,99,1]);
         let mut p1 = p.clone();
@@ -459,11 +474,11 @@ mod tests {
     #[test]
     fn large_numbers() {
         let mut p = Program::from_list(vec![104,1125899906842624,99]);
-        assert_eq!(p.run(None), Some(1125899906842624));
+        assert_eq!(p.run(None), ProgramState::Output(1125899906842624));
 
         // Multiplies 34915192 by itself and outputs the result
         let mut p = Program::from_list(vec![1102,34915192,34915192,7,4,7,99,0]);
-        assert_eq!(p.run(None), Some(34915192 * 34915192));
+        assert_eq!(p.run(None), ProgramState::Output(34915192 * 34915192));
     }
 
     #[test]
@@ -517,7 +532,7 @@ mod tests {
         assert_eq!(p.vals[1000], 1);
 
         // Next should be stop
-        assert_eq!(p.run(None), None);
+        assert_eq!(p.run(None), ProgramState::Stopped);
         // Pointer shouldn't have moved
         assert_eq!(p.pointer, 12);
     }

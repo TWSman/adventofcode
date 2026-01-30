@@ -64,18 +64,20 @@ fn try_sequence_feedback(program: &Program, phase_settings: &[&i64]) -> i64 {
     let mut e_out = 0;
 
     loop {
-        let mut res = None;
+        let mut res = ProgramState::Unknown;
         for p in programs.iter_mut() {
             // Next input is the previous output, or 0 for the first amplifier
             p.add_input(input_signal);
             res = p.run(None);
-            if res.is_none() {
+            if res == ProgramState::Stopped {
                 // Program has halted
                 break;
             }
-            input_signal = res.unwrap();
+            if let ProgramState::Output(val) = res {
+                input_signal = val;
+            }
         }
-        if res.is_none() {
+        if res == ProgramState::Stopped {
             // Program has halted
             break;
         }

@@ -112,13 +112,13 @@ fn get_part1(program: &mut Program, part2: bool) -> i64 {
         // First output defines the color to paint
         match res {
             // 1 indicates white
-            Some(1) => {
+            ProgramState::Output(1) => {
                 grid.insert(robot.loc, Color::White);
             },
-            Some(0) => {
+            ProgramState::Output(0) => {
                 grid.insert(robot.loc, Color::Black);
             },
-            None => {
+            ProgramState::Stopped => {
                 break;
             },
             _ => panic!("Unexpected output"),
@@ -128,13 +128,13 @@ fn get_part1(program: &mut Program, part2: bool) -> i64 {
         // First output defines the color to paint
         match res {
             // 1 indicates white
-            Some(1) => {
+            ProgramState::Output(1) => {
                 robot.turn_right();
             },
-            Some(0) => {
+            ProgramState::Output(0) => {
                 robot.turn_left();
             },
-            None => {
+            ProgramState::Stopped => {
                 break;
             },
             _ => panic!("Unexpected output"),
