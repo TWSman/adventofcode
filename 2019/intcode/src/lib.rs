@@ -57,6 +57,10 @@ impl Program {
         self.inputs.push(input);
     }
 
+    pub fn get_input_pointer(&self) -> usize {
+        self.input_pointer
+    }
+
     pub fn reset(&mut self) {
         self.vals = self.initial_state.clone();
         self.inputs.clear();
@@ -79,6 +83,10 @@ impl Program {
 
     pub fn get_outputs(&self) -> Vec<i64> {
         self.outputs.clone()
+    }
+
+    pub fn get_inputs(&self) -> Vec<i64> {
+        self.inputs.clone()
     }
 
     pub fn get_output(&self, index: i64) -> i64 {
