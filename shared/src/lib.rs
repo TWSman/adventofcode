@@ -5,6 +5,7 @@ use num_traits::FromPrimitive;
 use strum_macros::EnumIter; // 0.17.1
 use std::fmt::Display;
 use core::fmt;
+use std::ops::{Mul, Add};
 //
 #[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, FromPrimitive, Hash)]
 pub enum Dir {
@@ -124,6 +125,15 @@ impl Dir{
         }
     }
 
+    pub const fn get_dir_true_vec(self) -> Vec2D {
+        match self {
+            Self::N => Vec2D { x: 0, y: 1 },
+            Self::E => Vec2D { x: 1, y: 0 },
+            Self::S => Vec2D { x: 0, y: -1},
+            Self::W => Vec2D { x: -1, y: 0},
+        }
+    }
+
     pub const fn get_char(self) -> char {
         match self {
             Self::N => '^',
@@ -165,6 +175,28 @@ impl Vec2D {
     }
 }
 
+impl Mul<i64> for Vec2D {
+    type Output = Vec2D;
+    fn mul(self, rhs: i64) -> Self::Output {
+        Vec2D {
+            x: self.x * rhs,
+            y: self.y * rhs,
+        }
+    }
+}
+
+
+impl Add for Vec2D {
+    type Output = Vec2D;
+
+    fn add(self, rhs: Vec2D) -> Vec2D {
+        Vec2D {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -191,5 +223,8 @@ mod tests {
         assert_eq!(a.manhattan(&b),20);
         assert_eq!(a.manhattan(&a), 0);
         assert_eq!(b.manhattan(&a),20);
+
+        assert_eq!(a +b , Vec2D{x: -30, y: -30});
+        assert_eq!(a * 2 , Vec2D{x: -20, y: -20});
     }
 }
