@@ -5,7 +5,7 @@ use num_traits::FromPrimitive;
 use strum_macros::EnumIter; // 0.17.1
 use std::fmt::Display;
 use core::fmt;
-use std::ops::{Mul, Add};
+use std::ops::{Mul, Add, Sub};
 //
 #[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter, FromPrimitive, Hash)]
 pub enum Dir {
@@ -197,6 +197,31 @@ impl Add for Vec2D {
     }
 }
 
+impl Sub for Vec2D {
+    type Output = Vec2D;
+    fn sub(self, rhs: Vec2D) -> Vec2D {
+        Vec2D {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+        }
+    }
+}
+
+impl PartialOrd for Vec2D {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Vec2D {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        match self.y.cmp(&other.y) {
+            std::cmp::Ordering::Equal => self.x.cmp(&other.x),
+            ord => ord,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -225,6 +250,7 @@ mod tests {
         assert_eq!(b.manhattan(&a),20);
 
         assert_eq!(a +b , Vec2D{x: -30, y: -30});
+        assert_eq!(a - b , Vec2D{x: 10, y: 10});
         assert_eq!(a * 2 , Vec2D{x: -20, y: -20});
     }
 }
