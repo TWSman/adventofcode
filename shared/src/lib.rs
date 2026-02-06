@@ -222,6 +222,60 @@ impl Ord for Vec2D {
     }
 }
 
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+pub struct Vec3D {
+    pub x: i64,
+    pub y: i64,
+    pub z: i64,
+}
+
+impl Vec3D {
+    pub fn new(x: i64, y: i64, z: i64) -> Self {
+        Self {x,y,z}
+    }
+
+    pub fn manhattan(&self, other: &Self) -> i64 {
+        (self.x - other.x).abs() + (self.y - other.y).abs() + (self.z - other.z).abs()
+    }
+}
+
+impl Mul<i64> for Vec3D {
+    type Output = Vec3D;
+    fn mul(self, rhs: i64) -> Self::Output {
+        Vec3D {
+            x: self.x * rhs,
+            y: self.y * rhs,
+            z: self.z * rhs,
+        }
+    }
+}
+
+
+impl Add for Vec3D {
+    type Output = Vec3D;
+    fn add(self, rhs: Vec3D) -> Vec3D {
+        Vec3D {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+        }
+    }
+}
+
+impl Sub for Vec3D {
+    type Output = Vec3D;
+    fn sub(self, rhs: Vec3D) -> Vec3D {
+        Vec3D {
+            x: self.x - rhs.x,
+            y: self.y - rhs.y,
+            z: self.z - rhs.z,
+        }
+    }
+}
+
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
