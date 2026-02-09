@@ -1,7 +1,5 @@
 use clap::Parser;
-use colored::*;
 use shared::Vec3D;
-use std::collections::BTreeSet;
 use std::fs;
 use std::time::Instant;
 use regex::Regex;
@@ -40,8 +38,8 @@ fn read_contents(cont: &str, loops: usize) -> (i64, i64) {
     (part1, part2)
 }
 
-fn get_part1(moons: &Vec<Moon>, steps: usize) -> i64 {
-    let mut moons = moons.clone();
+fn get_part1(moons: &[Moon], steps: usize) -> i64 {
+    let mut moons = moons.to_owned();
     for _ in 0..steps {
         let moons2 = moons.clone();
         for moon in moons.iter_mut() {
@@ -80,34 +78,43 @@ fn get_part2(moons: &Vec<Moon>, max_steps: usize) -> i64 {
 
     let mut moons = moons.clone();
     let mut cycle_found: Vec<Option<i64>> = vec![None, None, None];
-    for i in 0..max_steps {
-        if i % 10000 == 0 {
-            println!("Step {:>7}: ", i);
+    for i_step in 0..max_steps {
+        if i_step % 10000 == 0 {
+            println!("Step {:>7}: ", i_step);
         }
-        let mut back_to_start = vec![true, true, true, true];
-        for i in 0..moons.len() {
-            for j in (i+1)..moons.len() {
+        let mut back_to_start = [true, true, true, true];
+        for i_moon in 0..moons.len() {
+            for j in (i_moon+1)..moons.len() {
                 let (left, right) = moons.split_at_mut(j);
-                Moon::apply_pair(&mut left[i], &mut right[0]);
+                Moon::apply_pair(&mut left[i_moon], &mut right[0]);
             }
         }
         for moon in moons.iter_mut() {
             moon.propagate();
-            for (i, b) in back_to_start.iter_mut().enumerate() {
-                if *b && !moon.back_to_start(if i < 3 {Some(i)} else {None}) {
+            for (i_axis, b) in back_to_start.iter_mut().enumerate() {
+                if *b && !moon.back_to_start(if i_axis < 3 {Some(i_axis)} else {None}) {
                     *b = false;
                 }
             }
         }
 
-        for (i, b) in back_to_start.iter().take(3).enumerate() {
-            if cycle_found[i].is_none() && *b {
-                cycle_found[i] = Some(moons[0].history.len() as i64 - 1);
+        for (i_axis, b) in back_to_start.iter().take(3).enumerate() {
+            if cycle_found[i_axis].is_none() && *b {
+                cycle_found[i_axis] = Some(moons[0].history.len() as i64 - 1);
                 dbg!(&cycle_found);
                 if cycle_found.iter().all(|c| c.is_some()) {
                     println!("All cycles found after {} steps: {:?}", moons[0].history.len() - 1, cycle_found);
-                    let lcm = cycle_found.iter().map(|c| c.unwrap()).fold(1, |acc, x| lcm(acc, x));
+                    let lcm = cycle_found.iter().map(|c| c.unwrap()).fold(1, lcm);
                     println!("LCM of cycles is {}", lcm);
+
+                    for j in 0..i_step {
+                        for moon in &moons {
+                            print!("{}, {}, {}, ", moon.history[j].x, moon.history[j].y, moon.history[j].z);
+                        }
+                        println!();
+
+                    }
+
                     return lcm;
                 }
             }
@@ -229,14 +236,6 @@ impl Moon {
 
     fn propagate(&mut self) {
         self.position = self.position + self.velocity;
-        if self.history.contains(&self.position) && false {
-            println!("Moon {} has been at position {}, {}, {} before after {} steps",
-                self.id,
-                self.position.x,
-                self.position.y,
-                self.position.z,
-                self.history.len() - 1);
-        }
         self.history.push(self.position);
     }
 
