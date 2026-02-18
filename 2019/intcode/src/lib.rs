@@ -85,6 +85,11 @@ impl Program {
         self.outputs.clone()
     }
 
+    pub fn get_outputs_ascii(&self) -> String {
+        // Interpret outputs as ASCII characters and return the resulting string
+        self.outputs.iter().map(|&o| o as u8 as char).collect::<String>()
+    }
+
     pub fn get_inputs(&self) -> Vec<i64> {
         self.inputs.clone()
     }

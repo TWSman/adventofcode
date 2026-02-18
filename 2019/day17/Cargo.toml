@@ -1,0 +1,10 @@
+[package]
+name = "day17"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.59", features = ["derive"] }
+colored = "3.1.1"
+intcode = { version = "0.1.0", path = "../intcode" }
+shared = { version = "0.1.0", path = "../../shared" }
