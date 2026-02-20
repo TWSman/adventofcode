@@ -155,7 +155,7 @@ impl Dir{
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Vec2D {
     pub x: i64,
     pub y: i64,
@@ -193,6 +193,18 @@ impl Add for Vec2D {
         Vec2D {
             x: self.x + rhs.x,
             y: self.y + rhs.y,
+        }
+    }
+
+}
+
+impl Add<(i64,i64)> for Vec2D {
+    type Output = Vec2D;
+
+    fn add(self, rhs: (i64, i64)) -> Vec2D {
+        Vec2D {
+            x: self.x + rhs.0,
+            y: self.y + rhs.1,
         }
     }
 }
