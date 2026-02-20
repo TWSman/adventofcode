@@ -32,7 +32,10 @@ fn main() {
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let grid = read_grid(cont);
+    let mut grid = read_grid(cont);
+    let analyzed = analyze_grid(&grid);
+    grid.nodes = analyzed;
+    grid.print_grid();
     let part1 = get_part1(&grid);
     let part2 = get_part2(&grid);
     (part1, part2)
@@ -52,22 +55,23 @@ struct Grid {
     grid: BTreeMap<Vec2D, Object>,
     entrance: Vec2D,
     key_n: usize,
+    nodes: BTreeMap<Vec2D, Node>,
 }
 
 //type Grid = BTreeMap<Vec2D, Object>;
 
 impl Grid {
     fn print_grid(&self) {
-        let min_x = self.grid.keys().map(|v| v.x).min().unwrap() - 2;
-        let max_x = self.grid.keys().map(|v| v.x).max().unwrap() + 2;
-        let min_y = self.grid.keys().map(|v| v.y).min().unwrap() - 2;
-        let max_y = self.grid.keys().map(|v| v.y).max().unwrap() + 2;
+        let min_x = self.grid.keys().map(|v| v.x).min().unwrap();
+        let max_x = self.grid.keys().map(|v| v.x).max().unwrap();
+        let min_y = self.grid.keys().map(|v| v.y).min().unwrap();
+        let max_y = self.grid.keys().map(|v| v.y).max().unwrap();
 
         for y in (min_y..=max_y).rev() {
             for x in min_x..=max_x {
                 match self.grid.get(&Vec2D { x, y }) {
                     Some(Object::Wall) => {
-                        print!("{}", "#".blue().on_black());
+                        print!("{}", "#".blue().on_blue());
                     }
                     Some(&Object::Empty) => {
                         print!("{}", ".".black().on_black());
@@ -129,11 +133,14 @@ fn read_grid(cont: &str) -> Grid {
         .0
         .clone();
     let key_n = key_list.len();
-    Grid {
+    let mut gg = Grid {
         grid,
         entrance: *entrance,
         key_n,
-    }
+        nodes: BTreeMap::new(),
+    };
+    gg.nodes = analyze_grid(&gg);
+    gg
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Hash)]
@@ -153,57 +160,115 @@ impl State {
     }
 }
 
-fn get_part1(grid: &Grid) -> i64 {
-    grid.print_grid();
-    let start_state = State {
-        loc: grid.entrance,
-        keys: BTreeSet::new(),
+#[derive(Debug, Clone)]
+struct Node {
+    routes: Vec<(Vec2D, Object, usize)>,
+}
+
+fn analyze_grid(grid: &Grid) -> BTreeMap<Vec2D, Node> {
+    let nodes: BTreeMap<Vec2D, Object> = grid
+        .grid
+        .iter()
+        .filter_map(|(k, v)| match v {
+            Object::Wall | Object::Empty => None,
+            Object::Door(_) | Object::Entrance | Object::Key(_) => Some((*k, *v)),
+        })
+        .collect();
+
+    let mut out = BTreeMap::new();
+    for node in nodes {
+        let routes = find_routes(grid, node.0);
+        let nod = Node { routes };
+        out.insert(node.0, nod);
+    }
+    out
+}
+
+struct State0 {
+    loc: Vec2D,
+    steps: usize,
+}
+
+fn find_routes(grid: &Grid, start: Vec2D) -> Vec<(Vec2D, Object, usize)> {
+    let start_state = State0 {
+        loc: start,
         steps: 0,
     };
-    let mut visited: BTreeSet<(Vec2D, String)> = BTreeSet::new();
-    let mut queue: PriorityQueue<State, _> = PriorityQueue::new();
-    let prio = start_state.prio(grid.key_n);
-    queue.push(start_state, Reverse(prio));
-    visited.insert((grid.entrance, "".to_string()));
-    let mut loop_count = 0;
-    let mut max_keys = 0;
+    let mut visited: BTreeSet<Vec2D> = BTreeSet::new();
+    let mut found: Vec<_> = Vec::new();
+    let mut queue = Vec::new();
+    queue.push(start_state);
+    visited.insert(start);
     loop {
         if queue.is_empty() {
             break;
         }
-        loop_count += 1;
-        let (state, _prio) = queue.pop().unwrap();
-        if state.keys.len() > max_keys {
-            max_keys = state.keys.len();
-            println!("Loop: {loop_count}");
-            println!(
-                "State: steps: {}, Keys: {} ({} / {})",
-                state.steps,
-                state.keystring(),
-                state.keys.len(),
-                grid.key_n
-            );
-        }
+        let state = queue.pop().unwrap();
         let loc = state.loc;
         for dir in [Dir::N, Dir::S, Dir::W, Dir::E] {
             let dx = dir.get_dir_true_vec();
             let new_loc = dx + loc;
-            let mut found_key: Option<char> = None;
+            if visited.contains(&(new_loc)) {
+                continue;
+            }
             match grid.grid.get(&new_loc).unwrap_or(&Object::Wall) {
                 Object::Empty => {}
                 Object::Wall => {
                     continue;
                 }
                 Object::Entrance => {}
-                Object::Key(c) => {
-                    found_key = Some(*c);
-                }
-                Object::Door(c) if state.keys.contains(&c.to_ascii_lowercase()) => {}
-                Object::Door(_) => {
+                c => {
+                    found.push((new_loc, *c, state.steps + 1));
                     continue;
                 }
             }
-            //println!("Moving from {:?} to {:?} with keys {:?} and prio {:?}", loc, new_loc, state.keys, prio);
+            let new_state = State0 {
+                loc: new_loc,
+                steps: state.steps + 1,
+            };
+            visited.insert(new_state.loc);
+            queue.push(new_state);
+        }
+    }
+    found
+}
+
+fn get_part1(grid: &Grid) -> i64 {
+    let start_state = State {
+        loc: grid.entrance,
+        keys: BTreeSet::new(),
+        steps: 0,
+    };
+    if grid.nodes.is_empty() {
+        panic!("Grid not analyzed yet");
+    }
+    let mut visited: BTreeSet<(Vec2D, String)> = BTreeSet::new();
+    let mut queue: PriorityQueue<State, _> = PriorityQueue::new();
+    let prio = start_state.prio(grid.key_n);
+    queue.push(start_state, Reverse(prio));
+    visited.insert((grid.entrance, "".to_string()));
+    loop {
+        if queue.is_empty() {
+            break;
+        }
+        let (state, _prio) = queue.pop().unwrap();
+        let node = grid.nodes.get(&state.loc).unwrap();
+        for target in &node.routes {
+            let new_loc = target.0;
+            let mut found_key: Option<char> = None;
+            match target.1 {
+                Object::Door(c) if state.keys.contains(&c.to_ascii_lowercase()) => {}
+                Object::Door(_) => {
+                    continue; // Can't go to a closed door
+                }
+                Object::Key(c) => {
+                    found_key = Some(c);
+                }
+                Object::Entrance => panic!("Should not have entrance in routes"),
+                Object::Wall => panic!("Should not have wall in routes"),
+                Object::Empty => panic!("Should not have wall in routes"),
+            }
+
             let new_state = State {
                 loc: new_loc,
                 keys: match found_key {
@@ -215,7 +280,7 @@ fn get_part1(grid: &Grid) -> i64 {
                         .collect(),
                     None => state.keys.clone(),
                 },
-                steps: state.steps + 1,
+                steps: state.steps + target.2,
             };
             if visited.contains(&(new_loc, new_state.keystring())) {
                 continue;
@@ -223,8 +288,8 @@ fn get_part1(grid: &Grid) -> i64 {
             if new_state.keys.len() == grid.key_n {
                 println!(
                     "Found solution with {} steps, keys: {}",
-                    state.steps,
-                    state.keystring()
+                    new_state.steps,
+                    new_state.keystring()
                 );
                 return new_state.steps as i64;
             }
@@ -241,7 +306,6 @@ struct State2 {
     locs: Vec<Vec2D>,
     keys: BTreeSet<char>,
     steps: usize,
-    prev_move: Option<usize>,
 }
 
 impl State2 {
@@ -267,7 +331,7 @@ fn get_part2(grid: &Grid) -> i64 {
     grid.grid.insert(entrance + (1, -1), Object::Entrance);
     grid.grid.insert(entrance + (-1, 1), Object::Entrance);
     grid.grid.insert(entrance + (-1, -1), Object::Entrance);
-    grid.print_grid();
+    grid.nodes = analyze_grid(&grid);
 
     let start_state = State2 {
         locs: vec![
@@ -278,7 +342,6 @@ fn get_part2(grid: &Grid) -> i64 {
         ],
         keys: BTreeSet::new(),
         steps: 0,
-        prev_move: None,
     };
     let mut visited: BTreeSet<(Vec<Vec2D>, String)> = BTreeSet::new();
     let mut queue: PriorityQueue<State2, _> = PriorityQueue::new();
@@ -305,36 +368,27 @@ fn get_part2(grid: &Grid) -> i64 {
             );
         }
         for i in 0..4 {
-            if state.prev_move.is_some() && state.prev_move != Some(i) {
-                continue;
-            }
-            let loc = state.locs[i];
-            for dir in [Dir::N, Dir::S, Dir::W, Dir::E] {
-                let dx = dir.get_dir_true_vec();
-                let new_loc = dx + loc;
-                let mut found_key: Option<char> = None;
-                match grid.grid.get(&new_loc).unwrap_or(&Object::Wall) {
-                    Object::Empty => {}
-                    Object::Wall => {
-                        continue;
-                    }
-                    Object::Entrance => {}
-                    Object::Key(c) => {
-                        found_key = Some(*c);
-                    }
-                    Object::Door(c) if state.keys.contains(&c.to_ascii_lowercase()) => {}
-                    Object::Door(_c) => {
-                        continue;
-                    }
-                }
-                //println!("Moving from {:?} to {:?} with keys {:?} and prio {:?}", loc, new_loc, state.keys, prio);
+            let node = grid.nodes.get(&state.locs[i]).unwrap();
+            for target in &node.routes {
                 let mut new_locs = state.locs.clone();
-                new_locs[i] = new_loc;
-                if visited.contains(&(new_locs.clone(), state.keystring())) {
-                    continue;
+                new_locs[i] = target.0;
+                let mut found_key: Option<char> = None;
+                match target.1 {
+                    Object::Door(c) if state.keys.contains(&c.to_ascii_lowercase()) => {}
+                    Object::Door(_) => {
+                        continue; // Can't go to a closed door
+                    }
+                    Object::Key(c) if state.keys.contains(&c.to_ascii_lowercase()) => {}
+                    Object::Key(c) => {
+                        found_key = Some(c);
+                    }
+                    Object::Entrance => panic!("Should not have entrance in routes"),
+                    Object::Wall => panic!("Should not have wall in routes"),
+                    Object::Empty => panic!("Should not have wall in routes"),
                 }
+
                 let new_state = State2 {
-                    locs: new_locs,
+                    locs: new_locs.clone(),
                     keys: match found_key {
                         Some(k) => state
                             .keys
@@ -344,15 +398,13 @@ fn get_part2(grid: &Grid) -> i64 {
                             .collect(),
                         None => state.keys.clone(),
                     },
-                    steps: state.steps + 1,
-                    prev_move: if found_key.is_some() { None } else { Some(i) },
+                    steps: state.steps + target.2,
                 };
+                if visited.contains(&(new_locs.clone(), new_state.keystring())) {
+                    continue;
+                }
                 if new_state.keys.len() == grid.key_n {
-                    println!(
-                        "Found solution with {} steps, keys: {}",
-                        state.steps,
-                        state.keystring()
-                    );
+                    println!("Found solution with {} steps", state.steps,);
                     return new_state.steps as i64;
                 }
                 visited.insert((new_state.locs.clone(), new_state.keystring()));
@@ -376,7 +428,6 @@ mod tests {
 #########";
 
         let grid = read_grid(a);
-        grid.print_grid();
         assert_eq!(get_part1(&grid), 8);
     }
 
