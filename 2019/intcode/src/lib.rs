@@ -73,6 +73,13 @@ impl Program {
         self.vals[index]
     }
 
+    pub fn double_state(&mut self) {
+        let n = self.vals.len();
+        self.vals.resize(n * 2, 0);
+        self.initial_state.resize(n * 2, 0);
+        dbg!(self.vals.len());
+    }
+
     pub fn set_index(&mut self, index: usize, val: i64) {
         self.vals[index] = val;
     }
@@ -203,6 +210,10 @@ impl Program {
                     self.input_pointer += 1;
                     if self.verbose >= STOP_VERBOSE {
                         println!("Read input: {} to *{}", input, out_ind);
+                    }
+                    if out_ind >= self.vals.len() {
+                        self.double_state();
+                        println!("Output index {} out of bounds, doubling memory to {}", out_ind, self.vals.len());
                     }
                     self.vals[out_ind] = input;
                 }
