@@ -62,8 +62,6 @@ struct Grid {
     portals: BTreeMap<(char, char), Vec<(Vec2D, PortalType)>>,
 }
 
-//type Grid = BTreeMap<Vec2D, Object>;
-
 impl Grid {
     fn print_grid(&self, loc: Option<Vec2D>) {
         let min_x = self.grid.keys().map(|v| v.x).min().unwrap();
@@ -73,11 +71,11 @@ impl Grid {
 
         for y in (min_y..=max_y).rev() {
             for x in min_x..=max_x {
-                if let Some(loc) = loc {
-                    if (loc == Vec2D { x, y }) {
-                        print!("{}", "X".red().on_white());
-                        continue;
-                    }
+                if let Some(loc) = loc
+                    && (loc == Vec2D { x, y })
+                {
+                    print!("{}", "X".red().on_white());
+                    continue;
                 }
                 match self.grid.get(&Vec2D { x, y }) {
                     Some(Object::Wall) => {
@@ -86,10 +84,10 @@ impl Grid {
                     Some(Object::PortalCandidate(c)) => {
                         print!("{}", c.to_string().red().on_black());
                     }
-                    Some(Object::Portal((_,__,PortalType::Outer))) => {
+                    Some(Object::Portal((_, _, PortalType::Outer))) => {
                         print!("{}", '#'.to_string().red().on_white());
                     }
-                    Some(Object::Portal((_,__,PortalType::Inner))) => {
+                    Some(Object::Portal((_, _, PortalType::Inner))) => {
                         print!("{}", '#'.to_string().blue().on_white());
                     }
                     Some(&Object::Empty) => {
@@ -114,15 +112,17 @@ fn analyze_grid(grid: &Grid) -> BTreeMap<Vec2D, Node> {
         .iter()
         .filter_map(|(k, v)| match v {
             Object::Wall | Object::Empty | Object::Outside | Object::PortalCandidate(_) => None,
-            Object::Portal(_)  => Some((*k, *v)),
+            Object::Portal(_) => Some((*k, *v)),
         })
         .collect();
 
     let mut out = BTreeMap::new();
     for node in nodes {
         let routes = find_routes(grid, node.0);
-        let nod = Node {obj: node.1,
-            routes:routes };
+        let nod = Node {
+            obj: node.1,
+            routes,
+        };
         out.insert(node.0, nod);
     }
     out
@@ -161,7 +161,7 @@ fn find_routes(grid: &Grid, start: Vec2D) -> Vec<(Vec2D, Object, usize)> {
                 Object::Wall | Object::Outside | Object::PortalCandidate(_) => {
                     continue;
                 }
-Object::Portal(p) => {
+                Object::Portal(p) => {
                     found.push((new_loc, Object::Portal(*p), state.steps + 1));
                     continue;
                 }
@@ -203,9 +203,7 @@ fn read_grid(cont: &str) -> Grid {
     let portal_candidates = grid
         .iter()
         .filter(|(_, obj)| matches!(obj, Object::PortalCandidate(_)))
-        .map(|(loc, obj)| (loc, obj))
         .collect::<Vec<_>>();
-
 
     let min_x = grid.keys().map(|v| v.x).min().unwrap();
     let max_x = grid.keys().map(|v| v.x).max().unwrap();
@@ -229,9 +227,11 @@ fn read_grid(cont: &str) -> Grid {
             panic!("Should only be iterating over portal candidates");
         };
 
-        let portal_type = if portal_loc.x < min_x + 2 || portal_loc.x > max_x - 2 {
-            PortalType::Outer
-        } else if portal_loc.y < min_y + 2 || portal_loc.y > max_y - 2 {
+        let portal_type = if portal_loc.x < min_x + 2
+            || portal_loc.x > max_x - 2
+            || portal_loc.y < min_y + 2
+            || portal_loc.y > max_y - 2
+        {
             PortalType::Outer
         } else {
             PortalType::Inner
@@ -241,8 +241,12 @@ fn read_grid(cont: &str) -> Grid {
         let below_obj = grid.get(&below).unwrap_or(&Object::Empty);
 
         match (right_obj, below_obj) {
-            (_, Object::PortalCandidate(c))=> {
-                let (portal_loc, portal_name) = if grid.get(&(**portal_loc + Vec2D { x: 0, y: -2 })).unwrap_or(&Object::Outside) == &Object::Outside {
+            (_, Object::PortalCandidate(c)) => {
+                let (portal_loc, portal_name) = if grid
+                    .get(&(**portal_loc + Vec2D { x: 0, y: -2 }))
+                    .unwrap_or(&Object::Outside)
+                    == &Object::Outside
+                {
                     (**portal_loc + Vec2D { x: 0, y: 1 }, (*port_c, *c))
                 } else {
                     (**portal_loc + Vec2D { x: 0, y: -2 }, (*port_c, *c))
@@ -251,10 +255,17 @@ fn read_grid(cont: &str) -> Grid {
                     .entry(portal_name)
                     .or_insert_with(Vec::new)
                     .push((portal_loc, portal_type));
-                println!("Found portal at {:?} with name {:?}", portal_loc, portal_name);
+                println!(
+                    "Found portal at {:?} with name {:?}",
+                    portal_loc, portal_name
+                );
             }
             (Object::PortalCandidate(c), _) => {
-                let (portal_loc, portal_name) = if grid.get(&(**portal_loc - Vec2D { x: 2, y: 0 })).unwrap_or(&Object::Outside) == &Object::Outside {
+                let (portal_loc, portal_name) = if grid
+                    .get(&(**portal_loc - Vec2D { x: 2, y: 0 }))
+                    .unwrap_or(&Object::Outside)
+                    == &Object::Outside
+                {
                     (**portal_loc + Vec2D { x: 2, y: 0 }, (*port_c, *c))
                 } else {
                     (**portal_loc + Vec2D { x: -1, y: 0 }, (*port_c, *c))
@@ -263,35 +274,39 @@ fn read_grid(cont: &str) -> Grid {
                     .entry(portal_name)
                     .or_insert_with(Vec::new)
                     .push((portal_loc, portal_type));
-                println!("Found portal at {:?} with name {:?}", portal_loc, portal_name);
+                println!(
+                    "Found portal at {:?} with name {:?}",
+                    portal_loc, portal_name
+                );
             }
             _ => continue,
         }
     }
 
-    //dbg!(&portal_candidates);
-
     for (portal_name, locs) in &portals {
         for (loc, portal_type) in locs {
-            grid.insert(*loc, Object::Portal((portal_name.0, portal_name.1, *portal_type)));
+            grid.insert(
+                *loc,
+                Object::Portal((portal_name.0, portal_name.1, *portal_type)),
+            );
         }
     }
 
     let entrance = &grid
         .iter()
-        .find(|(_, obj)| **obj == Object::Portal(('A','A', PortalType::Outer)))
+        .find(|(_, obj)| **obj == Object::Portal(('A', 'A', PortalType::Outer)))
         .unwrap()
         .0
         .clone();
 
-    let gg = Grid {
+    let mut gg = Grid {
         grid,
-        portals: portals,
+        portals,
         nodes: BTreeMap::new(),
         entrance: *entrance,
     };
 
-    dbg!(&gg.portals);
+    gg.nodes = analyze_grid(&gg);
     gg
 }
 
@@ -308,11 +323,8 @@ struct State2 {
     steps: usize,
 }
 
-
 fn get_part2(grid: &Grid) -> i64 {
-    let mut grid = grid.clone();
-    grid.nodes = analyze_grid(&grid);
-    dbg!(&grid.nodes);
+    let grid = grid.clone();
 
     let start_loc = grid.entrance;
     let start_state = State2 {
@@ -321,7 +333,7 @@ fn get_part2(grid: &Grid) -> i64 {
         steps: 0,
     };
 
-    let prio =  Reverse(start_state.steps);
+    let prio = Reverse(start_state.steps);
     let mut queue = PriorityQueue::new();
     grid.print_grid(Some(start_state.loc));
     queue.push(start_state, prio);
@@ -334,31 +346,43 @@ fn get_part2(grid: &Grid) -> i64 {
         let (state, _prio) = queue.pop().unwrap();
 
         let node = grid.nodes.get(&state.loc).unwrap();
-        println!("Now at: ");
-        dbg!(&state.loc);
-        dbg!(&node);
 
-        for (new_loc, target, steps)  in &node.routes {
-            if *target == Object::Portal(('Z','Z', PortalType::Outer)) {
+        if node.obj == Object::Portal(('Z', 'Z', PortalType::Outer)) {
+            println!("Found solution with {} steps", state.steps);
+            return state.steps as i64;
+        }
+
+        for (new_loc, target, steps) in &node.routes {
+            if *target == Object::Portal(('Z', 'Z', PortalType::Outer)) {
                 if state.level == 0 {
-                    println!("Found solution with {} steps", state.steps + steps);
-                    return (state.steps) as i64;
-                } else {
-                    continue;
+                    println!(
+                        "Found potential solution with {} steps",
+                        state.steps + steps
+                    );
+
+                    queue.push(
+                        State2 {
+                            loc: *new_loc,
+                            level: state.level,
+                            steps: state.steps + steps,
+                        },
+                        Reverse(state.steps + steps),
+                    );
                 }
-            }
-            if *target == Object::Portal(('A','A', PortalType::Outer)) {
                 continue;
             }
-            if matches!(target, Object::Portal((_,_,PortalType::Outer))) && state.level == 0 {
+            if *target == Object::Portal(('A', 'A', PortalType::Outer)) {
+                continue;
+            }
+            if matches!(target, Object::Portal((_, _, PortalType::Outer))) && state.level == 0 {
                 continue;
             }
             let portal_name = match target {
-                Object::Portal((a,b, _)) => (*a,*b),
+                Object::Portal((a, b, _)) => (*a, *b),
                 _ => continue,
             };
             let portal_type = match target {
-                Object::Portal((_,_,t)) => t,
+                Object::Portal((_, _, t)) => t,
                 _ => continue,
             };
             let other_portal_locs = grid.portals.get(&portal_name).unwrap();
@@ -378,7 +402,6 @@ fn get_part2(grid: &Grid) -> i64 {
                 },
                 Reverse(state.steps),
             );
-
         }
     }
     0
@@ -392,7 +415,7 @@ fn get_part1(grid: &Grid) -> i64 {
         steps: 0,
     };
 
-    let prio =  Reverse(start_state.steps);
+    let prio = Reverse(start_state.steps);
     let mut queue = PriorityQueue::new();
     grid.print_grid(Some(start_state.loc));
     queue.push(start_state, prio);
@@ -402,49 +425,50 @@ fn get_part1(grid: &Grid) -> i64 {
             println!("No solution found");
             break;
         }
-        let (state, _prio) = queue.pop().unwrap();
 
-        for dir in [Dir::N, Dir::S, Dir::W, Dir::E] {
-            let new_loc = state.loc + dir.get_dir_true_vec();
-            match grid.grid.get(&new_loc) {
-                Some(Object::Wall) | None | Some(Object::Outside) | Some(Object::PortalCandidate(_)) => continue,
-                Some(Object::Empty) => {
-                    queue.push(
-                        State {
-                            loc: new_loc,
-                            steps: state.steps + 1,
-                        },
-                        Reverse(state.steps + 1),
-                    );
-                }
-                Some(Object::Portal(portal_name)) => {
-                    if *portal_name == ('A','A', PortalType::Outer) {
-                        // No point in going back to the entrance
-                        continue;
-                    }
-                    if *portal_name == ('Z','Z', PortalType::Outer) {
-                        println!("Found solution with {} steps", state.steps + 1);
-                        return (state.steps + 1) as i64;
-                    }
-                    let other_portal_locs = grid.portals.get(&(portal_name.0, portal_name.1)).unwrap();
-                    let (other_portal_loc, _) = other_portal_locs
-                        .iter()
-                        .find(|(loc, _)| *loc != new_loc)
-                        .unwrap();
-                    queue.push(
-                        State {
-                            loc: *other_portal_loc,
-                            steps: state.steps + 2,
-                        },
-                        Reverse(state.steps),
-                    );
-                }
+        let (state, _prio) = queue.pop().unwrap();
+        let node = grid.nodes.get(&state.loc).unwrap();
+
+        if node.obj == Object::Portal(('Z', 'Z', PortalType::Outer)) {
+            println!("Found solution with {} steps", state.steps);
+            return state.steps as i64;
+        }
+        for (new_loc, target, steps) in &node.routes {
+            if *target == Object::Portal(('Z', 'Z', PortalType::Outer)) {
+                println!("Found possible solution with {} steps", state.steps + steps);
+                queue.push(
+                    State {
+                        loc: *new_loc,
+                        steps: state.steps + steps,
+                    },
+                    Reverse(state.steps + steps),
+                );
+                continue;
             }
+            if *target == Object::Portal(('A', 'A', PortalType::Outer)) {
+                continue;
+            }
+            let portal_name = match target {
+                Object::Portal((a, b, _)) => (*a, *b),
+                _ => continue,
+            };
+            let other_portal_locs = grid.portals.get(&portal_name).unwrap();
+            let (other_portal_loc, _) = other_portal_locs
+                .iter()
+                .find(|(loc, _)| loc != new_loc)
+                .unwrap();
+
+            queue.push(
+                State {
+                    loc: *other_portal_loc,
+                    steps: state.steps + steps + 1,
+                },
+                Reverse(state.steps + steps + 1),
+            );
         }
     }
     0
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -471,14 +495,14 @@ DE..#######...###.#
 FG..#########.....#  
   ###########.#####  
              Z       
-             Z       ";  
+             Z       ";
         let grid = read_grid(a);
         assert_eq!(get_part1(&grid), 23);
     }
 
     #[test]
     fn part1b() {
-        let a ="
+        let a = "
                    A               
                    A               
   #################.#############  
@@ -519,13 +543,12 @@ YN......#               VT..#....QG
 
         let grid = read_grid(a);
         assert_eq!(get_part1(&grid), 58);
-
     }
-
 
     #[test]
     fn part2() {
-        let a = "             Z L X W       C                 
+        let a = "
+             Z L X W       C                 
              Z P Q B       K                 
   ###########.#.#.#.#######.###############  
   #...#.......#.#.......#.#.......#.#.#...#  
@@ -567,5 +590,4 @@ RE....#.#                           #......RF
         assert_eq!(get_part1(&grid), 77);
         assert_eq!(get_part2(&grid), 396);
     }
-
 }
