@@ -127,10 +127,10 @@ fn get_part2(program: &Program, grid: &Grid) -> i64 {
 
     println!("Input to give:\n{}##############\n\n", output);
     for o in output_as_ascii {
-        program.add_input(o);
+        program.add_input(o as i128);
     }
     program.run_until_stop();
-    *program.get_outputs().last().unwrap()
+    *program.get_outputs().last().unwrap() as i64
 }
 
 #[derive(Debug, Eq, PartialEq, Clone, Copy)]
@@ -359,8 +359,8 @@ fn find_path(grid: &Grid) -> Vec<Move> {
 fn read_contents(cont: &str) -> (i64, i64) {
     let vals = cont
         .split(",")
-        .map(|s| s.trim().parse::<i64>().unwrap())
-        .collect::<Vec<i64>>();
+        .map(|s| s.trim().parse::<i128>().unwrap())
+        .collect::<Vec<_>>();
 
     let p = Program::from_list(vals.clone());
     let mut grid = get_grid(&mut p.clone());

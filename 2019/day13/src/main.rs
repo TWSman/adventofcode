@@ -80,7 +80,7 @@ fn get_part1(program: &mut Program) -> i64 {
         let x = r[0];
         let y = r[1];
         let tile_id = r[2];
-        let obj = Object::new(tile_id);
+        let obj = Object::new(tile_id as i64);
         grid.insert((x as usize, y as usize), obj);
     }
     print_grid(&grid);
@@ -133,7 +133,7 @@ fn get_part2(program: &mut Program, read_user_input: bool) -> i64 {
         match res {
             ProgramState::Output(out) => {
                 // Program returned an output
-                output.push(out);
+                output.push(out.try_into().unwrap());
             }
             ProgramState::Stopped => {
                 println!("Program returned: STOP");
@@ -203,11 +203,11 @@ fn get_part2(program: &mut Program, read_user_input: bool) -> i64 {
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let vals = cont.split(",").map(|s| s.trim().parse::<i64>().unwrap()).collect::<Vec<i64>>();
+    let vals = cont.split(",").map(|s| s.trim().parse::<i128>().unwrap()).collect::<Vec<_>>();
 
     let mut p = Program::from_list(vals.clone());
     p.set_verbose(0);
     let part1  = get_part1(&mut p.clone());
-    let part2 = get_part2(&mut p.clone(), true);
+    let part2 = get_part2(&mut p.clone(), false);
     (part1, part2)
 }

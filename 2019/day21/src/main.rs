@@ -42,7 +42,7 @@ fn get_part1(program: &Program) -> i64 {
 
     p.set_verbose(0);
     for o in input_as_ascii {
-        p.add_input(o);
+        p.add_input(o as i128);
     }
     p.run_until_stop();
     // Chech final output
@@ -56,7 +56,7 @@ fn get_part1(program: &Program) -> i64 {
         println!("Program prints:\n{}", output);
 
         println!("Final output: {}", final_output);
-        return final_output;
+        return final_output.try_into().unwrap();
     }
     let output = p.get_outputs_ascii();
     println!("{}", output);
@@ -94,7 +94,7 @@ fn get_part2(program: &Program) -> i64 {
 
     p.set_verbose(0);
     for o in input_as_ascii {
-        p.add_input(o);
+        p.add_input(o as i128);
     }
     p.run_until_stop();
     // Chech final output
@@ -109,7 +109,7 @@ fn get_part2(program: &Program) -> i64 {
         println!("Program prints:\n{}", output);
 
         println!("Final output: {}", final_output);
-        return final_output;
+        return final_output.try_into().unwrap();
     }
     let output = p.get_outputs_ascii();
     println!("{}", output);
@@ -119,8 +119,8 @@ fn get_part2(program: &Program) -> i64 {
 fn read_contents(cont: &str) -> (i64, i64) {
     let vals = cont
         .split(",")
-        .map(|s| s.trim().parse::<i64>().unwrap())
-        .collect::<Vec<i64>>();
+        .map(|s| s.trim().parse::<i128>().unwrap())
+        .collect::<Vec<_>>();
 
     let p = Program::from_list(vals.clone());
     let part1 = get_part1(&p);

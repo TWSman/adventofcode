@@ -26,16 +26,16 @@ fn main() {
     println!("Execution lasted {:.2?}", elapsed);
 }
 
-fn get_result(vals: Vec<i64>, input: i64) -> i64 {
+fn get_result(vals: Vec<i128>, input: i64) -> i64 {
     let mut p = Program::from_list(vals);
-    p.add_input(input);
+    p.add_input(input as i128);
     p.run_until_stop();
-    p.get_output(-1)
+    p.get_output(-1).try_into().unwrap()
 }
 
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let vals = cont.split(",").map(|s| s.trim().parse::<i64>().unwrap()).collect::<Vec<i64>>();
+    let vals = cont.split(",").map(|s| s.trim().parse::<i128>().unwrap()).collect::<Vec<_>>();
 
     let part1 = get_result(vals.clone(), 1);
     let part2 = get_result(vals.clone(), 5);

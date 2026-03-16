@@ -5,16 +5,16 @@ use num_enum::TryFromPrimitive;
 #[derive(Debug, Clone)]
 pub struct Program {
     // The main internal state
-    vals:  Vec<i64>, // Main memory of the program
+    vals:  Vec<i128>, // Main memory of the program
     pointer: usize, // Instruction pointer
-    relative_base: i64,
+    relative_base: i128,
 
     // Other helpful stuff, related to I/O, verbosity and resetting memory
     input_pointer: usize,
-    inputs: Vec<i64>,
-    outputs: Vec<i64>,
+    inputs: Vec<i128>,
+    outputs: Vec<i128>,
     verbose: usize,
-    initial_state: Vec<i64>,
+    initial_state: Vec<i128>,
     step_counter: usize,
 }
 
@@ -25,14 +25,14 @@ const STOP_VERBOSE: usize = 1;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProgramState {
     Running,
-    Output(i64),
+    Output(i128),
     WaitingForInput,
     Stopped,
     Unknown,
 }
 
 impl Program {
-    pub fn from_list(initial_state: Vec<i64>) -> Self {
+    pub fn from_list(initial_state: Vec<i128>) -> Self {
         let mut stat = initial_state.clone();
         stat.resize(4096, 0);
         Program {
@@ -49,11 +49,11 @@ impl Program {
     }
 
     pub fn new(ln: &str) -> Self {
-        let vals = ln.split(',').map(|s| s.parse::<i64>().unwrap()).collect::<Vec<i64>>();
+        let vals = ln.split(',').map(|s| s.parse::<i128>().unwrap()).collect::<Vec<i128>>();
         Self::from_list(vals)
     }
 
-    pub fn add_input(&mut self, input: i64) {
+    pub fn add_input(&mut self, input: i128) {
         self.inputs.push(input);
     }
 
@@ -69,7 +69,7 @@ impl Program {
         self.input_pointer = 0;
     }
 
-    pub fn get_index(&self, index: usize) -> i64 {
+    pub fn get_index(&self, index: usize) -> i128 {
         self.vals[index]
     }
 
@@ -80,7 +80,7 @@ impl Program {
         dbg!(self.vals.len());
     }
 
-    pub fn set_index(&mut self, index: usize, val: i64) {
+    pub fn set_index(&mut self, index: usize, val: i128) {
         self.vals[index] = val;
     }
 
@@ -88,7 +88,7 @@ impl Program {
         self.verbose = v;
     }
 
-    pub fn get_outputs(&self) -> Vec<i64> {
+    pub fn get_outputs(&self) -> Vec<i128> {
         self.outputs.clone()
     }
 
@@ -97,15 +97,15 @@ impl Program {
         self.outputs.iter().map(|&o| o as u8 as char).collect::<String>()
     }
 
-    pub fn get_inputs(&self) -> Vec<i64> {
+    pub fn get_inputs(&self) -> Vec<i128> {
         self.inputs.clone()
     }
 
-    pub fn get_output(&self, index: i64) -> i64 {
+    pub fn get_output(&self, index: i128) -> i128 {
         if index >= 0 {
             self.outputs[index as usize]
         } else {
-            self.outputs[(self.outputs.len() as i64 + index) as usize]
+            self.outputs[(self.outputs.len() as i128 + index) as usize]
         }
     }
 
@@ -157,7 +157,7 @@ impl Program {
 
             let (inputs, outputs, total) = op.get_parameters();
             assert!(outputs <= 1); // This implementation only supports one output parameter
-            let param: Vec<i64> = (self.pointer+1..self.pointer+1+inputs).enumerate().map(|(i, pi)| {
+            let param: Vec<i128> = (self.pointer+1..self.pointer+1+inputs).enumerate().map(|(i, pi)| {
                 if mods[i] == 0 {
                     self.vals[self.vals[pi as usize] as usize]
                 } else if mods[i] == 1 {

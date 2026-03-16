@@ -30,18 +30,18 @@ fn get_part1(program: &mut Program) -> i64 {
     program.set_verbose(0);
     program.add_input(1);
     program.run_until_stop();
-    program.get_output(-1)
+    program.get_output(-1) as i64
 }
 
 fn get_part2(program: &mut Program) -> i64 {
     program.add_input(2);
     program.run_until_stop();
-    program.get_output(-1)
+    program.get_output(-1) as i64
 }
 
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let vals = cont.split(",").map(|s| s.trim().parse::<i64>().unwrap()).collect::<Vec<i64>>();
+    let vals = cont.split(",").map(|s| s.trim().parse::<i128>().unwrap()).collect::<Vec<i128>>();
 
     let mut p = Program::from_list(vals.clone());
     let part1 = get_part1(&mut p.clone());

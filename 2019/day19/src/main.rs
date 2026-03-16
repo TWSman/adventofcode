@@ -75,8 +75,8 @@ fn check_coord(program: &Program, x: i64, y: i64) -> (i64, i64, i64) {
     let mut p = program.clone();
     p.set_verbose(0);
     p.reset();
-    p.add_input(x);
-    p.add_input(y);
+    p.add_input(x as i128);
+    p.add_input(y as i128);
     loop {
         let res = p.run(None);
         match res {
@@ -88,7 +88,7 @@ fn check_coord(program: &Program, x: i64, y: i64) -> (i64, i64, i64) {
                 println!("Running");
             }
             ProgramState::WaitingForInput => panic!("Program waiting for input unexpectedly"),
-            ProgramState::Output(out) => return (out, x, y),
+            ProgramState::Output(out) => return (out as i64, x, y),
             ProgramState::Unknown => panic!("Program in unknown state"),
         }
     }
@@ -210,8 +210,8 @@ fn check_distance(program: &mut Program, x: i64, target_width: i64) -> (Option<i
 fn read_contents(cont: &str) -> (i64, i64) {
     let vals = cont
         .split(",")
-        .map(|s| s.trim().parse::<i64>().unwrap())
-        .collect::<Vec<i64>>();
+        .map(|s| s.trim().parse::<i128>().unwrap())
+        .collect::<Vec<_>>();
 
     let p = Program::from_list(vals.clone());
     let part1 = get_part1(&p);

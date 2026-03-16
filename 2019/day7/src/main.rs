@@ -58,7 +58,7 @@ fn try_sequence_feedback(program: &Program, phase_settings: &[&i64]) -> i64 {
     let mut programs = vec![program.clone(); 5];
     for (p, setting) in programs.iter_mut().zip(phase_settings.iter()) {
         // Phase settings is always the first input
-        p.add_input(**setting);
+        p.add_input(**setting as i128);
     }
     let mut input_signal = 0;
     let mut e_out = 0;
@@ -83,7 +83,7 @@ fn try_sequence_feedback(program: &Program, phase_settings: &[&i64]) -> i64 {
         }
         e_out = input_signal;
     }
-    e_out
+    e_out as i64
 }
 
 fn try_sequence(p: &mut Program, phase_settings: &[&i64]) -> i64 {
@@ -93,18 +93,18 @@ fn try_sequence(p: &mut Program, phase_settings: &[&i64]) -> i64 {
         p.reset();
 
         // First input is the phase setting
-        p.add_input(**setting);
+        p.add_input((**setting) as i128);
         // Second input is the previous output, or 0 for the first amplifier
         p.add_input(input_signal);
         p.run_until_stop();
         input_signal = p.get_output(-1);
     }
-    input_signal
+    input_signal as i64
 }
 
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let vals = cont.split(",").map(|s| s.trim().parse::<i64>().unwrap()).collect::<Vec<i64>>();
+    let vals = cont.split(",").map(|s| s.trim().parse::<i128>().unwrap()).collect::<Vec<i128>>();
 
     let mut program = Program::from_list(vals);
     program.set_verbose(0);
