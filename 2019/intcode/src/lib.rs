@@ -1,12 +1,11 @@
-use std::time::Instant;
 use num_enum::TryFromPrimitive;
-
+use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct Program {
     // The main internal state
-    vals:  Vec<i128>, // Main memory of the program
-    pointer: usize, // Instruction pointer
+    vals: Vec<i128>, // Main memory of the program
+    pointer: usize,  // Instruction pointer
     relative_base: i128,
 
     // Other helpful stuff, related to I/O, verbosity and resetting memory
@@ -34,7 +33,13 @@ pub enum ProgramState {
 impl Program {
     pub fn from_list(initial_state: Vec<i128>) -> Self {
         let mut stat = initial_state.clone();
-        stat.resize(4096, 0);
+        if stat.len() < 4096 {
+            stat.resize(4096, 0);
+        } else if stat.len() < 8192 {
+            stat.resize(8192, 0);
+        } else {
+            panic!("Initial state too large, should be less than 4096 or 8192");
+        }
         Program {
             vals: stat.clone(),
             pointer: 0,
@@ -49,7 +54,10 @@ impl Program {
     }
 
     pub fn new(ln: &str) -> Self {
-        let vals = ln.split(',').map(|s| s.parse::<i128>().unwrap()).collect::<Vec<i128>>();
+        let vals = ln
+            .split(',')
+            .map(|s| s.parse::<i128>().unwrap())
+            .collect::<Vec<i128>>();
         Self::from_list(vals)
     }
 
@@ -94,7 +102,10 @@ impl Program {
 
     pub fn get_outputs_ascii(&self) -> String {
         // Interpret outputs as ASCII characters and return the resulting string
-        self.outputs.iter().map(|&o| o as u8 as char).collect::<String>()
+        self.outputs
+            .iter()
+            .map(|&o| o as u8 as char)
+            .collect::<String>()
     }
 
     pub fn get_inputs(&self) -> Vec<i128> {
@@ -118,6 +129,42 @@ impl Program {
         }
     }
 
+    pub fn run_interpreter(&mut self) {
+        let mut outputs = Vec::new();
+        loop {
+            let res = self.run(None);
+            match res {
+                ProgramState::Stopped => {
+                    let output_str = outputs
+                        .iter()
+                        .map(|&o| (o % 128) as u8 as char)
+                        .collect::<String>();
+                    println!("{}", output_str);
+                    break;
+                }
+                ProgramState::Output(c) => {
+                    outputs.push(c);
+                }
+                ProgramState::WaitingForInput => {
+                    let output_str = outputs
+                        .iter()
+                        .map(|&o| (o % 128) as u8 as char)
+                        .collect::<String>();
+                    println!("{}", output_str);
+                    outputs = Vec::new();
+                    let mut input = String::new();
+                    std::io::stdin()
+                        .read_line(&mut input)
+                        .expect("Failed to read input");
+                    for c in input.chars() {
+                        self.add_input(c as u8 as i128);
+                    }
+                }
+                _ => panic!(),
+            }
+        }
+    }
+
     pub fn run(&mut self, steps: Option<usize>) -> ProgramState {
         let start = Instant::now();
         if self.verbose >= 1 && self.step_counter == 0 {
@@ -126,10 +173,10 @@ impl Program {
         let mut step_counter = 0;
         loop {
             step_counter += 1;
-            if let Some(st) = steps {
-                if step_counter > st {
-                    return ProgramState::Running
-                }
+            if let Some(st) = steps
+                && step_counter > st
+            {
+                return ProgramState::Running;
             }
             self.step_counter += 1;
             if self.verbose >= OP_VERBOSE {
@@ -138,13 +185,12 @@ impl Program {
             let opcode = self.vals[self.pointer];
             let op = Operation::new((opcode % 100).try_into().unwrap()).unwrap();
 
-            let mods = vec![(self.vals[self.pointer] / 100) % 10,
+            let mods = vec![
+                (self.vals[self.pointer] / 100) % 10,
                 (self.vals[self.pointer] / 1000) % 10,
                 (self.vals[self.pointer] / 10000) % 10,
                 (self.vals[self.pointer] / 100000) % 10,
             ];
-
-
 
             if self.verbose >= DEBUG_VERBOSE {
                 println!();
@@ -157,25 +203,32 @@ impl Program {
 
             let (inputs, outputs, total) = op.get_parameters();
             assert!(outputs <= 1); // This implementation only supports one output parameter
-            let param: Vec<i128> = (self.pointer+1..self.pointer+1+inputs).enumerate().map(|(i, pi)| {
-                if mods[i] == 0 {
-                    self.vals[self.vals[pi as usize] as usize]
-                } else if mods[i] == 1 {
-                    self.vals[pi as usize]
-                } else {
-                    // Relative mode
-                    self.vals[(self.relative_base + self.vals[pi as usize]) as usize]
-                }
-            }).collect();
+            let param: Vec<i128> = (self.pointer + 1..self.pointer + 1 + inputs)
+                .enumerate()
+                .map(|(i, pi)| {
+                    if mods[i] == 0 {
+                        self.vals[self.vals[pi] as usize]
+                    } else if mods[i] == 1 {
+                        self.vals[pi]
+                    } else {
+                        // Relative mode
+                        self.vals[(self.relative_base + self.vals[pi]) as usize]
+                    }
+                })
+                .collect();
 
             let output_mode = mods[inputs];
             let out_ind: usize = if outputs == 0 {
                 0
-            } else if  output_mode == 0 {
-                self.vals[self.pointer + 1 + inputs].try_into().expect("Output index must be positive")
+            } else if output_mode == 0 {
+                self.vals[self.pointer + 1 + inputs]
+                    .try_into()
+                    .expect("Output index must be positive")
             } else if output_mode == 2 {
                 let tmp = self.vals[self.pointer + 1 + inputs];
-                (self.relative_base + tmp).try_into().expect("Output index must be positive")
+                (self.relative_base + tmp)
+                    .try_into()
+                    .expect("Output index must be positive")
             } else {
                 panic!("Invalid output mode");
             };
@@ -185,19 +238,40 @@ impl Program {
                 dbg!(&out_ind);
             }
 
+            if out_ind >= self.vals.len() {
+                self.double_state();
+                println!(
+                    "Output index {} out of bounds, doubling memory to {}",
+                    out_ind,
+                    self.vals.len()
+                );
+            }
+
             match op {
                 Operation::Sum => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Adding {} and {} = {} into *{}", param[0], param[1], param[0] + param[1], out_ind);
+                        println!(
+                            "Adding {} and {} = {} into *{}",
+                            param[0],
+                            param[1],
+                            param[0] + param[1],
+                            out_ind
+                        );
                     }
                     self.vals[out_ind] = param[0] + param[1];
-                },
+                }
                 Operation::Product => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Multiplying {} and {} = {} into *{}", param[0], param[1], param[0] * param[1], out_ind);
+                        println!(
+                            "Multiplying {} and {} = {} into *{}",
+                            param[0],
+                            param[1],
+                            param[0] * param[1],
+                            out_ind
+                        );
                     }
                     self.vals[out_ind] = param[0] * param[1];
-                },
+                }
 
                 Operation::Input => {
                     if self.input_pointer >= self.inputs.len() {
@@ -210,10 +284,6 @@ impl Program {
                     self.input_pointer += 1;
                     if self.verbose >= STOP_VERBOSE {
                         println!("Read input: {} to *{}", input, out_ind);
-                    }
-                    if out_ind >= self.vals.len() {
-                        self.double_state();
-                        println!("Output index {} out of bounds, doubling memory to {}", out_ind, self.vals.len());
                     }
                     self.vals[out_ind] = input;
                 }
@@ -271,17 +341,23 @@ impl Program {
 
                 Operation::AdjustRelativeBase => {
                     if self.verbose >= OP_VERBOSE {
-                        println!("Adjusting relative base from {} by {}", self.relative_base, param[0]);
+                        println!(
+                            "Adjusting relative base from {} by {}",
+                            self.relative_base, param[0]
+                        );
                     }
                     self.relative_base += param[0];
-                },
+                }
                 Operation::Stop => {
                     let elapsed = start.elapsed();
                     if self.verbose >= STOP_VERBOSE {
-                        println!("Stopping execution after {:.2?} and {} steps", elapsed, self.step_counter);
+                        println!(
+                            "Stopping execution after {:.2?} and {} steps",
+                            elapsed, self.step_counter
+                        );
                     }
                     return ProgramState::Stopped;
-                },
+                }
             }
             // Unless there was a jump, advance the pointer
             self.pointer += total;
@@ -292,14 +368,14 @@ impl Program {
 #[repr(usize)]
 #[derive(Debug, TryFromPrimitive, Copy, Clone, Eq, PartialEq)]
 enum Operation {
-    Sum = 1, // 1
-    Product = 2, // 2
-    Input = 3, // 3
-    Output = 4, // 4
-    JumpIfTrue = 5, // 5
-    JumpIfFalse = 6, // 6
-    LessThan = 7, // 7
-    Equals = 8, // 8
+    Sum = 1,                // 1
+    Product = 2,            // 2
+    Input = 3,              // 3
+    Output = 4,             // 4
+    JumpIfTrue = 5,         // 5
+    JumpIfFalse = 6,        // 6
+    LessThan = 7,           // 7
+    Equals = 8,             // 8
     AdjustRelativeBase = 9, // 9
     Stop = 99,
 }
@@ -312,16 +388,15 @@ impl Operation {
     fn get_parameters(&self) -> (usize, usize, usize) {
         // Get the size of the operation in memory (how much pointer should advance)
         match self {
-            Self::Sum | Self::Product | Self::Equals | Self::LessThan  => (2,1,4), // Two inputs, one output
-            Self::Output => (1,0,2), // One input, no output (to memory)
-            Self::Input => (0,1,2), // No inputs, one output
-            Self::AdjustRelativeBase => (1,0,2), // One input, adjusts relative base
-            Self::JumpIfTrue | Self::JumpIfFalse => (2,0,3), // Two inputs, no outputs
-            Self::Stop => (0,0,1),
+            Self::Sum | Self::Product | Self::Equals | Self::LessThan => (2, 1, 4), // Two inputs, one output
+            Self::Output => (1, 0, 2), // One input, no output (to memory)
+            Self::Input => (0, 1, 2),  // No inputs, one output
+            Self::AdjustRelativeBase => (1, 0, 2), // One input, adjusts relative base
+            Self::JumpIfTrue | Self::JumpIfFalse => (2, 0, 3), // Two inputs, no outputs
+            Self::Stop => (0, 0, 1),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -331,68 +406,74 @@ mod tests {
     fn basics() {
         let a = "1,0,0,3,99";
         let p = Program::new(a);
-        assert_eq!(p.vals[..5], vec![1,0,0,3,99]);
+        assert_eq!(p.vals[..5], vec![1, 0, 0, 3, 99]);
 
         // Does a sum and a product
         let b = "1,9,10,3,2,3,11,0,99,30,40,50";
         let mut p = Program::new(b);
-        assert_eq!(p.vals[..12], vec![1,9,10,3,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]);
         p.run_until_stop();
-        assert_eq!(p.vals[..12], vec![3500,9,10,70,2,3,11,0,99,30,40,50]);
+        assert_eq!(
+            p.vals[..12],
+            vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50]
+        );
 
         // Basic sum
         let mut p = Program::new("1,0,0,0,99");
         p.run_until_stop();
-        assert_eq!(p.vals[..5], vec![2,0,0,0,99]);
-        
+        assert_eq!(p.vals[..5], vec![2, 0, 0, 0, 99]);
+
         // Basic product
         let mut p = Program::new("2,3,0,3,99");
         p.run_until_stop();
-        assert_eq!(p.vals[..5], vec![2,3,0,6,99]);
+        assert_eq!(p.vals[..5], vec![2, 3, 0, 6, 99]);
 
         // Basic product
         let mut p = Program::new("2,4,4,5,99,0");
         p.run_until_stop();
-        assert_eq!(p.vals[..6], vec![2,4,4,5,99,9801]);
-        
+        assert_eq!(p.vals[..6], vec![2, 4, 4, 5, 99, 9801]);
+
         //  Another sum
         let mut p = Program::new("1,1,1,4,99,5,6,0,99");
         p.run_until_stop();
-        assert_eq!(p.vals[..9],  vec![30,1,1,4, 2,5,6,0,99]);
+        assert_eq!(p.vals[..9], vec![30, 1, 1, 4, 2, 5, 6, 0, 99]);
     }
 
-    #[test] 
+    #[test]
     fn reset() {
         // Does a sum and a product
         let b = "1,9,10,3,2,3,11,0,99,30,40,50";
         let mut p = Program::new(b);
-        assert_eq!(p.vals[..12], vec![1,9,10,3,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]);
         p.run_until_stop();
-        assert_eq!(p.vals[..12], vec![3500,9,10,70,2,3,11,0,99,30,40,50]);
+        assert_eq!(
+            p.vals[..12],
+            vec![3500, 9, 10, 70, 2, 3, 11, 0, 99, 30, 40, 50]
+        );
 
         p.add_input(42);
         assert_eq!(p.inputs, vec![42]);
         p.reset();
-        assert_eq!(p.vals[..12], vec![1,9,10,3,2,3,11,0,99,30,40,50]);
+        assert_eq!(p.vals[..12], vec![1, 9, 10, 3, 2, 3, 11, 0, 99, 30, 40, 50]);
         assert_eq!(p.inputs, vec![]);
     }
 
     #[test]
     fn equals() {
         // Position mode
-        let p = Program::from_list(vec![3,9,8,9,10,9,4,9,99,-1,8]);
+        let p = Program::from_list(vec![3, 9, 8, 9, 10, 9, 4, 9, 99, -1, 8]);
         let mut p1 = p.clone();
         p1.add_input(8);
         p1.run_until_stop();
         assert_eq!(p1.get_outputs(), vec![1]);
-        
+
         let mut p2 = p.clone();
         p2.add_input(7);
         p2.run_until_stop();
         assert_eq!(p2.get_outputs(), vec![0]);
 
         // Immediate mode
-        let p = Program::from_list(vec![3,3,1108,-1,8,3,4,3,99]);
+        let p = Program::from_list(vec![3, 3, 1108, -1, 8, 3, 4, 3, 99]);
         let mut p1 = p.clone();
         p1.add_input(8);
         p1.run_until_stop();
@@ -402,29 +483,28 @@ mod tests {
         p2.add_input(7);
         p2.run_until_stop();
         assert_eq!(p2.get_outputs(), vec![0]);
-        
     }
 
     #[test]
     fn less_than() {
         // Position mode
-        let p = Program::from_list(vec![3,9,7,9,10,9,4,9,99,-1,8]);
+        let p = Program::from_list(vec![3, 9, 7, 9, 10, 9, 4, 9, 99, -1, 8]);
         let mut p1 = p.clone();
         p1.add_input(7);
         p1.run_until_stop();
         assert_eq!(p1.get_outputs(), vec![1]);
-        
+
         let mut p2 = p.clone();
         p2.add_input(8);
         p2.run_until_stop();
         assert_eq!(p2.get_outputs(), vec![0]);
 
-        let p = Program::from_list(vec![3,3,1107,-1,8,3,4,3,99]);
+        let p = Program::from_list(vec![3, 3, 1107, -1, 8, 3, 4, 3, 99]);
         let mut p1 = p.clone();
         p1.add_input(7);
         p1.run_until_stop();
         assert_eq!(p1.get_outputs(), vec![1]);
-        
+
         let mut p2 = p.clone();
         p2.add_input(8);
         p2.run_until_stop();
@@ -433,7 +513,9 @@ mod tests {
 
     #[test]
     fn jump() {
-        let p = Program::from_list(vec![3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9]);
+        let p = Program::from_list(vec![
+            3, 12, 6, 12, 15, 1, 13, 14, 13, 4, 13, 99, -1, 0, 1, 9,
+        ]);
         let mut p1 = p.clone();
         p1.add_input(0);
         p1.run_until_stop();
@@ -452,7 +534,7 @@ mod tests {
         p2.add_input(7);
         assert_eq!(p2.run(None), ProgramState::Output(1));
 
-        let p = Program::from_list(vec![3,3,1105,-1,9,1101,0,0,12,4,12,99,1]);
+        let p = Program::from_list(vec![3, 3, 1105, -1, 9, 1101, 0, 0, 12, 4, 12, 99, 1]);
         let mut p1 = p.clone();
         p1.add_input(0);
         p1.run_until_stop();
@@ -465,11 +547,13 @@ mod tests {
     }
 
     #[test]
-    fn day5(){
+    fn day5() {
         // Example from day 5, part2
-        let p = Program::from_list(vec![3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,
-1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,
-999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99]);
+        let p = Program::from_list(vec![
+            3, 21, 1008, 21, 8, 20, 1005, 20, 22, 107, 8, 21, 20, 1006, 20, 31, 1106, 0, 36, 98, 0,
+            0, 1002, 21, 125, 20, 4, 20, 1105, 1, 46, 104, 999, 1105, 1, 46, 1101, 1000, 1, 20, 4,
+            20, 1105, 1, 46, 98, 99,
+        ]);
         let mut p1 = p.clone();
         p1.add_input(0);
         p1.run_until_stop();
@@ -489,25 +573,32 @@ mod tests {
     #[test]
     fn extra_memory() {
         // This should produce a copy of itself as output
-        let mut p = Program::from_list(vec![109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99]);
+        let mut p = Program::from_list(vec![
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ]);
         p.set_verbose(2);
         p.run_until_stop();
-        assert_eq!(p.get_outputs(), vec![109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99]);
+        assert_eq!(
+            p.get_outputs(),
+            vec![
+                109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99
+            ]
+        );
     }
 
     #[test]
     fn large_numbers() {
-        let mut p = Program::from_list(vec![104,1125899906842624,99]);
+        let mut p = Program::from_list(vec![104, 1125899906842624, 99]);
         assert_eq!(p.run(None), ProgramState::Output(1125899906842624));
 
         // Multiplies 34915192 by itself and outputs the result
-        let mut p = Program::from_list(vec![1102,34915192,34915192,7,4,7,99,0]);
+        let mut p = Program::from_list(vec![1102, 34915192, 34915192, 7, 4, 7, 99, 0]);
         assert_eq!(p.run(None), ProgramState::Output(34915192 * 34915192));
     }
 
     #[test]
     fn inputs() {
-        let mut p = Program::from_list(vec![3,5,3,6,99,0,0,0,0,0,0,0,0]);
+        let mut p = Program::from_list(vec![3, 5, 3, 6, 99, 0, 0, 0, 0, 0, 0, 0, 0]);
         p.add_input(42); // Input 42, should go to 5
         p.add_input(1729); // Input 1729, should go to 6
         p.run(None);
@@ -520,12 +611,8 @@ mod tests {
         // Checks that having a relative mode output works correctly
         // i.e. Output index is given in relative mode
         let mut p = Program::from_list(vec![
-            1101,0,3,1000,
-            109,994,
-            209,6,
-            9,1000,
-            203,0,
-            99]);
+            1101, 0, 3, 1000, 109, 994, 209, 6, 9, 1000, 203, 0, 99,
+        ]);
 
         p.set_verbose(2);
         p.add_input(1);
@@ -560,6 +647,4 @@ mod tests {
         // Pointer shouldn't have moved
         assert_eq!(p.pointer, 12);
     }
-
-
 }
