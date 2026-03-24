@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
+colored = "3.1.1"
 priority-queue = "2.7.0"
 regex = "1.12.2"
 strum = "0.27.2"
