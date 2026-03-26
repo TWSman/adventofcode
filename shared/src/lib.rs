@@ -295,6 +295,19 @@ mod tests {
     #[test]
     fn it_works() {
         assert_eq!(Dir::N.ccw(), Dir::W);
+        assert_eq!(Dir::W.ccw(), Dir::S);
+        assert_eq!(Dir::S.ccw(), Dir::E);
+        assert_eq!(Dir::E.ccw(), Dir::N);
+
+        assert_eq!(Dir::W.cw(), Dir::N);
+        assert_eq!(Dir::N.cw(), Dir::E);
+        assert_eq!(Dir::E.cw(), Dir::S);
+        assert_eq!(Dir::S.cw(), Dir::W);
+
+        assert_eq!(Dir::W.opposite(), Dir::E);
+        assert_eq!(Dir::E.opposite(), Dir::W);
+        assert_eq!(Dir::N.opposite(), Dir::S);
+        assert_eq!(Dir::S.opposite(), Dir::N);
     }
 
     #[test]
