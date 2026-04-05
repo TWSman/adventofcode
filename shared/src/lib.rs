@@ -60,6 +60,19 @@ impl AllDir {
             Self::W => (-1, 0),
         }
     }
+
+    pub const fn get_dir_true_vec(self) -> Vec2D {
+        match self {
+            Self::N => Vec2D { x: 0, y: 1 },
+            Self::NE => Vec2D { x: 1, y: 1 },
+            Self::E => Vec2D { x: 1, y: 0 },
+            Self::SE => Vec2D { x: 1, y: -1},
+            Self::S => Vec2D { x: 0, y: -1},
+            Self::SW => Vec2D { x: -1, y: -1},
+            Self::W => Vec2D { x: -1, y: 0},
+            Self::NW => Vec2D { x: -1, y: 1},
+        }
+    }
 }
 
 
