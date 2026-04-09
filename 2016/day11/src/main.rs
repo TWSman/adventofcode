@@ -2,7 +2,6 @@ use clap::Parser;
 use priority_queue::PriorityQueue;
 use regex::Regex;
 use std::collections::BTreeMap;
-use std::collections::BTreeSet;
 use std::fs;
 use std::time::Instant;
 
@@ -21,10 +20,7 @@ fn main() {
     let res = read_contents(&contents);
     println!("\n########################");
     println!("Part 1 answer is {}", res.0);
-    // 67 is too high (or at least wrong)
-    // 65 is too high (or at least wrong)
-    // 64 is wrong
-    // 63 is wrong
+    // 57 is the right answer
     println!("Part 2 answer is {}", res.1);
     let elapsed = start.elapsed();
     println!("Execution lasted {elapsed:.2?}");
@@ -35,12 +31,15 @@ fn read_contents(cont: &str) -> (i32, i32) {
     let part1 = find_route(&state);
     let mut state2 = state.clone();
     assert!(state2.steps == 0);
-    let j = state2.things.len();
+    let j = state2.things.len() / 2;
+
+    // Elerium
+    state2.things.insert((Thing::Chip, j), 1);
+    state2.things.insert((Thing::Generator, j), 1);
+
+    // Dilithium
     state2.things.insert((Thing::Chip, j + 1), 1);
     state2.things.insert((Thing::Generator, j + 1), 1);
-
-    state2.things.insert((Thing::Chip, j + 2), 1);
-    state2.things.insert((Thing::Generator, j + 2), 1);
     let part2 = find_route(&state2);
     (part1, part2)
 }
@@ -52,7 +51,6 @@ fn read_state(cont: &str) -> State {
     let mut things = BTreeMap::new();
     let mut j = 0;
     for (i, ln) in cont.lines().enumerate() {
-        println!("Floor: {}", 1 + i);
         if ln.contains("nothing") {
             continue;
         }
@@ -65,7 +63,6 @@ fn read_state(cont: &str) -> State {
             .map(|cap| cap[1].to_string())
             .collect::<Vec<_>>();
         for chip in floor_microchips {
-            //chips.insert(chip, (i + 1) as i32);
             if !translations.contains_key(&chip) {
                 translations.insert(chip.clone(), j);
                 j += 1;
@@ -74,7 +71,6 @@ fn read_state(cont: &str) -> State {
             things.insert((Thing::Chip, ind), (i + 1) as i32);
         }
         for generator in floor_generators {
-            //generators.insert(generator, (i + 1) as i32);
             if !translations.contains_key(&generator) {
                 translations.insert(generator.clone(), j);
                 j += 1;
@@ -84,7 +80,7 @@ fn read_state(cont: &str) -> State {
         }
     }
     State {
-        elevator: 1,
+        elevator: 1, // Elevator starts on ground floor
         things,
         steps: 0,
     }
@@ -97,26 +93,37 @@ enum Thing {
 }
 
 fn find_route(start: &State) -> i32 {
+    println!("Find route for {} things", start.things.len());
     let mut queue = PriorityQueue::new();
     let prio = start.get_priority();
     queue.push(start.clone(), prio);
     let mut min_steps = 9999;
-    let mut visited: BTreeSet<String> = BTreeSet::new();
+    let mut visited: BTreeMap<String, i32> = BTreeMap::new();
     let mut loop_count = 0;
     let mut skipped = 0;
+    let things = start.things.len();
     loop {
         loop_count += 1;
         if queue.is_empty() {
             return min_steps;
         }
         let (state, _) = queue.pop().unwrap();
+
         if state.is_finished() && state.steps < min_steps {
             min_steps = state.steps;
             println!("New minimum found in {loop_count} loops: {min_steps}");
-            //return min_steps;
-            continue;
+            println!(
+                "Loop count: {}, queue size: {}, visited size: {}, skipped: {}, steps: {}, min steps: {}",
+                loop_count,
+                queue.len(),
+                visited.len(),
+                skipped,
+                state.steps,
+                min_steps,
+            );
+            return min_steps;
         }
-        if state.steps > min_steps + 20 {
+        if state.steps > min_steps {
             println!("Too many steps, stopping search");
             return min_steps;
         }
@@ -125,7 +132,6 @@ fn find_route(start: &State) -> i32 {
         }
         if loop_count % 10_000 == 0 {
             let things4 = state.things.iter().filter(|(_, loc)| **loc == 4).count();
-            let things = state.things.len();
             println!(
                 "Loop count: {}, queue size: {}, visited size: {}, skipped: {}, steps: {}, min steps: {}, top floor: {} / {}",
                 loop_count,
@@ -150,9 +156,12 @@ fn find_route(start: &State) -> i32 {
             if !(1..=4).contains(&new_elevator) {
                 continue;
             }
+            if up_down == -1 && !state.floor_allowed(new_elevator) {
+                //println!("This move is not allowed");
+                continue;
+            }
             for thing in &stuff_on_floor {
                 //println!("Moving {:?} from floor {} to floor {}", thing, current_floor, new_elevator);
-                // Check moving any chip
                 let mut new_state = state.clone();
                 new_state.elevator = new_elevator;
                 new_state.things.insert(*thing, new_elevator);
@@ -160,9 +169,10 @@ fn find_route(start: &State) -> i32 {
                 let prio = new_state.get_priority();
                 let hash = new_state.get_hash();
                 if new_state.is_valid() {
-                    if !visited.contains(&hash) {
-                        //println!("Moving {:?} from floor {} to floor {}", thing, current_floor, new_elevator);
-                        visited.insert(hash);
+                    if !visited.contains_key(&hash)
+                        || *visited.get(&hash).unwrap() > new_state.steps
+                    {
+                        visited.insert(hash, new_state.steps);
                         queue.push(new_state, prio);
                     } else {
                         skipped += 1;
@@ -182,8 +192,10 @@ fn find_route(start: &State) -> i32 {
                     let hash = new_state.get_hash();
                     //println!("Moving {:?} and {:?}from floor {} to floor {}", thing, thing2, current_floor, new_elevator);
                     if new_state.is_valid() {
-                        if !visited.contains(&hash) {
-                            visited.insert(hash);
+                        if !visited.contains_key(&hash)
+                            || *visited.get(&hash).unwrap() > new_state.steps
+                        {
+                            visited.insert(hash, new_state.steps);
                             queue.push(new_state, prio);
                         } else {
                             skipped += 1;
@@ -198,46 +210,70 @@ fn find_route(start: &State) -> i32 {
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 struct State {
     elevator: i32,
-    //chips: BTreeMap<String, i32>,
-    //generators: BTreeMap<String, i32>,
     things: BTreeMap<(Thing, usize), i32>,
     steps: i32,
 }
 
 impl State {
-    fn get_hash(&self) -> String {
-        let mut output = format!("ele_{}", self.elevator);
-        for (thing, loc) in self.things.iter() {
-            if thing.0 == Thing::Generator {
-                output.push_str(&format!("g{}", loc));
+    fn floor_allowed(&self, floor: i32) -> bool {
+        let things1 = self.things.iter().filter(|(_, loc)| **loc == 1).count() as i32;
+        if floor > 2 {
+            return true;
+        }
+        if floor == 1 {
+            if things1 == 0 {
+                // No point in moving stuff to floor 1 if there is nothing there
+                return false;
+            } else {
+                return true;
             }
         }
+        assert_eq!(floor, 2);
+        let things2 = self.things.iter().filter(|(_, loc)| **loc == 2).count() as i32;
+        if things2 == 0 && things1 == 0 {
+            return false;
+        }
+        true
+    }
 
+    fn get_hash(&self) -> String {
+        let mut output = format!("ele_{}", self.elevator);
+        let mut vec = Vec::new();
+        // Find pairs of generator and chip
         for (thing, loc) in self.things.iter() {
-            if thing.0 == Thing::Chip {
-                output.push_str(&format!("c{}", loc));
+            if thing.0 == Thing::Generator {
+                let loc_chip = self.things.get(&(Thing::Chip, thing.1)).unwrap();
+                vec.push((loc, loc_chip));
             }
+        }
+        // Pairs get sorted by just location
+        // This way swapping two pairs does not change the hash
+        vec.sort();
+        for (v1, v2) in vec {
+            output.push_str(&format!("_{}{}", v1, v2));
         }
         output
     }
 
     fn is_valid(&self) -> bool {
         for (thing, loc) in self.things.iter() {
+            // Check all chips, skip others
             if thing.0 != Thing::Chip {
                 continue;
             }
-            if self.things.get(&(Thing::Generator, thing.1)).unwrap_or(&0) != loc {
-                // This chip is not with its generator, check if there are other generators on the same floor
-                for (_, gen_loc) in self
-                    .things
-                    .iter()
-                    .filter(|((t, _), _)| *t == Thing::Generator)
-                {
-                    if gen_loc == loc {
-                        //println!("Invalid state: chip {:<10} is on floor {} with generator {:<10}", chip, loc, gene);
-                        return false;
-                    }
-                }
+            if self.things.get(&(Thing::Generator, thing.1)).unwrap() == loc {
+                // This chip is with its generator, it's safe
+                continue;
+            }
+            // This chip is not with its generator, check if there are other generators on the same floor
+            if self
+                .things
+                .iter()
+                .filter(|((t, _), f)| *t == Thing::Generator && *f == loc)
+                .count()
+                > 0
+            {
+                return false;
             }
         }
         //println!("Is valid");
@@ -245,16 +281,12 @@ impl State {
     }
 
     fn get_priority(&self) -> i32 {
-        //let things = self.things.len() as i32;
         // More steps -> smaller priority
-        let mut priority = -4 * self.steps;
-        // More stuff at loc = 4 -> Higher priority
-        //let things4 = self.things.iter().filter(|(_,loc)| **loc == 4).count() as i32;
         let things3 = self.things.iter().filter(|(_, loc)| **loc == 3).count() as i32;
         let things2 = self.things.iter().filter(|(_, loc)| **loc == 2).count() as i32;
         let things1 = self.things.iter().filter(|(_, loc)| **loc == 1).count() as i32;
-        priority -= 36 * things1 + 16 * things2 + 12 * things3;
-        priority
+        let priority = self.steps + 6 * things1 + 4 * things2 + 2 * things3;
+        -priority
     }
 
     fn is_finished(&self) -> bool {
