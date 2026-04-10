@@ -20,7 +20,6 @@ fn main() {
     let res = read_contents(&contents);
     println!("\n########################");
     println!("Part 1 answer is {}", res.0);
-    // 57 is the right answer
     println!("Part 2 answer is {}", res.1);
     let elapsed = start.elapsed();
     println!("Execution lasted {elapsed:.2?}");
