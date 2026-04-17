@@ -117,7 +117,6 @@ fn main() {
     let contents = fs::read_to_string(args.input).expect("Should have been able to read the file");
     let (part1, part2) = read_contents(&contents, 100, 20);
     println!("Part 1 answer is {part1}");
-    // 976645 is too low
     println!("Part 2 answer is {part2}");
 }
 

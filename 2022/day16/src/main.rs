@@ -20,7 +20,6 @@ fn main() {
     let res = read_contents(&contents);
     println!("Part 1 answer is {}", res.0);  
     println!("Part 2 answer is {}", res.1);  
-    // 2419 is too low
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {

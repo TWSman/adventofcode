@@ -19,8 +19,6 @@ fn main() {
     let res = read_contents(&contents);
     println!("\n########################");
     println!("Part 1 answer is {}", res.0);
-    // 1293 is too low
-    // 1350 is too low
     println!("Part 2 answer is {}", res.1);
     let elapsed = start.elapsed();
     println!("Execution lasted {:.2?}", elapsed);

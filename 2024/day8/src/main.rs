@@ -50,7 +50,6 @@ fn main() {
     let args = Args::parse();
     let contents = fs::read_to_string(args.input).expect("Should have been able to read the file");
     let (part1, part2) = read_contents(&contents);
-    // 230 is too hight for part1
     println!("Part 1 answer is {part1}");
     println!("Part 2 answer is {part2}");
 }

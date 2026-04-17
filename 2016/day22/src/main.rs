@@ -21,7 +21,6 @@ fn main() {
     println!("\n########################");
     println!("Part 1 answer is {}", res.0);
     println!("Part 2 answer is {}", res.1);
-    // 184 is too low?
     let elapsed = start.elapsed();
     println!("Execution lasted {elapsed:.2?}");
 }
