@@ -23,7 +23,10 @@ fn main() {
 }
 
 fn read_contents(cont: &str) -> (i64, i64) {
-    let list = cont.chars().filter_map(|c| c.to_digit(10)).collect::<Vec<_>>();
+    let list = cont
+        .chars()
+        .filter_map(|c| c.to_digit(10))
+        .collect::<Vec<_>>();
     let part1 = get_part1(&list);
     let part2 = get_part2(&list);
     (part1, part2)
@@ -33,7 +36,7 @@ fn get_part2(list: &[u32]) -> i64 {
     let mut sum = 0;
     let len = list.len();
     assert_eq!(len % 2, 0);
-    for (i,n) in list.iter().enumerate() {
+    for (i, n) in list.iter().enumerate() {
         if n == &list[(i + len / 2) % len] {
             sum += *n as i64;
         }
@@ -52,7 +55,6 @@ fn get_part1(list: &[u32]) -> i64 {
     }
     sum
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -74,5 +76,4 @@ mod tests {
         assert_eq!(read_contents("123123").1, 12);
         assert_eq!(read_contents("12131415").1, 4);
     }
-
 }
