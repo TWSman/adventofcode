@@ -263,6 +263,11 @@ impl Vec3D {
     pub fn manhattan(&self, other: &Self) -> i64 {
         (self.x - other.x).abs() + (self.y - other.y).abs() + (self.z - other.z).abs()
     }
+
+    pub fn dot(&self, other: &Self) -> i64 {
+        // Dot product of two vectors
+        self.x * other.x + self.y * other.y + self.z * other.z
+    }
 }
 
 impl Mul<i64> for Vec3D {
