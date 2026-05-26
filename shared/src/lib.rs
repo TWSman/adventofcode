@@ -247,6 +247,12 @@ impl Ord for Vec2D {
     }
 }
 
+impl fmt::Display for Vec2D {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Vec3D {
@@ -301,6 +307,12 @@ impl Sub for Vec3D {
             y: self.y - rhs.y,
             z: self.z - rhs.z,
         }
+    }
+}
+
+impl fmt::Display for Vec3D {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {}, {})", self.x, self.y, self.z)
     }
 }
 
