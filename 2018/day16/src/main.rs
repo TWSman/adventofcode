@@ -36,11 +36,11 @@ enum Operation {
     BitwiseOrI,
     SetR,
     SetI,
-    GreaterR,
-    GreaterI,
+    GreaterRI,
+    GreaterIR,
     GreaterRR,
-    EqualityR,
-    EqualityI,
+    EqualityRI,
+    EqualityIR,
     EqualityRR,
 }
 
@@ -84,15 +84,15 @@ impl Operation {
             Operation::SetI => {
                 outputs[i.output as usize] = i.inputa;
             }
-            Operation::GreaterR => {
-                outputs[i.output as usize] = if i.inputa > outputs[i.inputb as usize] {
+            Operation::GreaterRI => {
+                outputs[i.output as usize] = if outputs[i.inputa as usize] > i.inputb  {
                     1
                 } else {
                     0
                 };
             }
-            Operation::GreaterI => {
-                outputs[i.output as usize] = if outputs[i.inputa as usize] > i.inputb {
+            Operation::GreaterIR => {
+                outputs[i.output as usize] = if i.inputa > outputs[i.inputb as usize] {
                     1
                 } else {
                     0
@@ -106,15 +106,15 @@ impl Operation {
                         0
                     };
             }
-            Operation::EqualityR => {
-                outputs[i.output as usize] = if i.inputa == outputs[i.inputb as usize] {
+            Operation::EqualityRI => {
+                outputs[i.output as usize] = if i.inputb == outputs[i.inputa as usize] {
                     1
                 } else {
                     0
                 };
             }
-            Operation::EqualityI => {
-                outputs[i.output as usize] = if outputs[i.inputa as usize] == i.inputb {
+            Operation::EqualityIR => {
+                outputs[i.output as usize] = if outputs[i.inputb as usize] == i.inputa {
                     1
                 } else {
                     0
@@ -162,11 +162,11 @@ fn check_instruction(instruction: &Instruction) -> Vec<Operation> {
         Operation::BitwiseOrI,
         Operation::SetR,
         Operation::SetI,
-        Operation::GreaterR,
-        Operation::GreaterI,
+        Operation::GreaterRI,
+        Operation::GreaterIR,
         Operation::GreaterRR,
-        Operation::EqualityR,
-        Operation::EqualityI,
+        Operation::EqualityRI,
+        Operation::EqualityIR,
         Operation::EqualityRR,
     ] {
         if instruction.after == operation.apply(instruction) {
@@ -192,11 +192,11 @@ fn get_mapping(instructions: &[Instruction]) -> BTreeMap<i32, Operation> {
                 Operation::BitwiseOrI,
                 Operation::SetR,
                 Operation::SetI,
-                Operation::GreaterR,
-                Operation::GreaterI,
+                Operation::GreaterRI,
+                Operation::GreaterIR,
                 Operation::GreaterRR,
-                Operation::EqualityR,
-                Operation::EqualityI,
+                Operation::EqualityRI,
+                Operation::EqualityIR,
                 Operation::EqualityRR,
             ],
         );
@@ -287,15 +287,15 @@ fn get_part2(instructions: &[Instruction], program: &Vec<(i32, i32, i32, i32)>) 
             Operation::SetI => {
                 registers[*output as usize] = *inputa;
             }
-            Operation::GreaterR => {
-                registers[*output as usize] = if *inputa > registers[*inputb as usize] {
+            Operation::GreaterRI => {
+                registers[*output as usize] = if registers[*inputa as usize] > *inputb {
                     1
                 } else {
                     0
                 };
             }
-            Operation::GreaterI => {
-                registers[*output as usize] = if registers[*inputa as usize] > *inputb {
+            Operation::GreaterIR => {
+                registers[*output as usize] = if *inputa > registers[*inputb as usize] {
                     1
                 } else {
                     0
@@ -309,15 +309,15 @@ fn get_part2(instructions: &[Instruction], program: &Vec<(i32, i32, i32, i32)>) 
                         0
                     };
             }
-            Operation::EqualityR => {
-                registers[*output as usize] = if *inputa == registers[*inputb as usize] {
+            Operation::EqualityRI => {
+                registers[*output as usize] = if *inputb == registers[*inputa as usize] {
                     1
                 } else {
                     0
                 };
             }
-            Operation::EqualityI => {
-                registers[*output as usize] = if registers[*inputa as usize] == *inputb {
+            Operation::EqualityIR => {
+                registers[*output as usize] = if registers[*inputb as usize] == *inputa {
                     1
                 } else {
                     0

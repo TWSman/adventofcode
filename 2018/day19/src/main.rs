@@ -141,14 +141,14 @@ impl Program {
                 self.registers[output as usize] = inputa;
             }
             Operation::GreaterRI => {
-                self.registers[output as usize] = if inputa > self.registers[inputb as usize] {
+                self.registers[output as usize] = if self.registers[inputa as usize] > inputb  {
                     1
                 } else {
                     0
                 };
             }
             Operation::GreaterIR => {
-                self.registers[output as usize] = if self.registers[inputa as usize] > inputb {
+                self.registers[output as usize] = if inputb > self.registers[inputa as usize] {
                     1
                 } else {
                     0
@@ -163,14 +163,14 @@ impl Program {
                     };
             }
             Operation::EqualityRI => {
-                self.registers[output as usize] = if inputa == self.registers[inputb as usize] {
+                self.registers[output as usize] = if inputb == self.registers[inputa as usize] {
                     1
                 } else {
                     0
                 };
             }
             Operation::EqualityIR => {
-                self.registers[output as usize] = if self.registers[inputa as usize] == inputb {
+                self.registers[output as usize] = if self.registers[inputb as usize] == inputa {
                     1
                 } else {
                     0
