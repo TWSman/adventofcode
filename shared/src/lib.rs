@@ -254,7 +254,7 @@ impl fmt::Display for Vec2D {
 }
 
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Vec3D {
     pub x: i64,
     pub y: i64,
