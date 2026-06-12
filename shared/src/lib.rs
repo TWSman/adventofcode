@@ -316,6 +316,29 @@ impl fmt::Display for Vec3D {
     }
 }
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub struct Vec4D {
+    pub x: i64,
+    pub y: i64,
+    pub z: i64,
+    pub t: i64,
+}
+
+impl Vec4D {
+    pub fn new(x: i64, y: i64, z: i64, t: i64) -> Self {
+        Self {x,y,z,t}
+    }
+
+    pub fn manhattan(&self, other: &Self) -> i64 {
+        (self.x - other.x).abs() + (self.y - other.y).abs() + (self.z - other.z).abs() + (self.t - other.t).abs()
+    }
+
+    pub fn dot(&self, other: &Self) -> i64 {
+        // Dot product of two vectors
+        self.x * other.x + self.y * other.y + self.z * other.z + self.t * other.t
+    }
+}
+
 
 
 #[cfg(test)]
@@ -361,5 +384,19 @@ mod tests {
         assert_eq!(a +b , Vec2D{x: -30, y: -30});
         assert_eq!(a - b , Vec2D{x: 10, y: 10});
         assert_eq!(a * 2 , Vec2D{x: -20, y: -20});
+    }
+
+    #[test]
+    fn vec4d() {
+        let a = Vec4D{x: 10, y: 10, z:10, t: 10};
+        let b = Vec4D{x: 20, y: 20, z:20, t: 20};
+        let c = Vec4D{x: 10, y: 10, z:10, t: 20};
+        assert_eq!(a.manhattan(&b),40);
+        assert_eq!(a.manhattan(&a), 0);
+        assert_eq!(b.manhattan(&a),40);
+
+        assert_eq!(a.manhattan(&c),10);
+
+        assert_eq!(a.dot(&b), 800);
     }
 }
