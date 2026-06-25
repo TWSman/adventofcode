@@ -35,6 +35,16 @@ pub enum AllDir {
     NW,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumIter)]
+pub enum Dir3D {
+    N, // Positive y
+    E, // Positive x
+    S,
+    W,
+    U, // Positive z
+    D,
+}
+
 impl AllDir {
     pub const fn get_dir(self) -> (i64, i64) {
         match self {
@@ -105,6 +115,66 @@ impl Display for Dir{
             Dir::S => write!(f, "v"),
             Dir::W => write!(f, "<"),
             Dir::E => write!(f, ">"),
+        }
+    }
+}
+
+
+impl Dir3D{
+    pub fn new(c: char) -> Self {
+        match c {
+            '^' => Self::N,
+            'v' => Self::S,
+            '<' => Self::W,
+            '>' => Self::E,
+            'U' => Self::U,
+            'D' => Self::D,
+            _ => panic!("Unknown character"),
+        }
+    }
+
+    pub const fn get_dir_true(self) -> (i64, i64, i64) {
+        // Alternate version with y increasing upwards (North is +y)
+        match self {
+            Self::E => (1, 0, 0),
+            Self::W => (-1, 0, 0),
+            Self::N => (0, 1, 0),
+            Self::S => (0, -1, 0),
+            Self::U => (0, 0, 1),
+            Self::D => (0, 0, -1),
+        }
+    }
+
+    pub const fn get_dir_true_vec(self) -> Vec3D {
+        match self {
+            Self::N => Vec3D { x: 0, y: 1, z: 0 },
+            Self::E => Vec3D { x: 1, y: 0, z: 0 },
+            Self::S => Vec3D { x: 0, y: -1, z: 0},
+            Self::W => Vec3D { x: -1, y: 0, z: 0},
+            Self::U => Vec3D { x: 0, y: 0, z: 1},
+            Self::D => Vec3D { x: 0, y: 0, z: -1},
+        }
+    }
+
+    pub const fn get_char(self) -> char {
+        match self {
+            Self::N => '^',
+            Self::E => '>',
+            Self::S => 'v',
+            Self::W => '<',
+            Self::U => 'U',
+            Self::D => 'D',
+        }
+    }
+
+    pub fn opposite(self) -> Self {
+        match self {
+            Self::N => Self::S,
+            Self::S => Self::N,
+            Self::E => Self::W,
+            Self::W => Self::E,
+            Self::U => Self::D,
+            Self::D => Self::U,
         }
     }
 }
@@ -247,6 +317,18 @@ impl Ord for Vec2D {
     }
 }
 
+impl PartialOrd for Vec3D {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Vec3D {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.x.cmp(&other.x).then(self.y.cmp(&other.y)).then(self.z.cmp(&other.z))
+    }
+}
+
 impl fmt::Display for Vec2D {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "({}, {})", self.x, self.y)
@@ -336,6 +418,30 @@ impl Vec4D {
     pub fn dot(&self, other: &Self) -> i64 {
         // Dot product of two vectors
         self.x * other.x + self.y * other.y + self.z * other.z + self.t * other.t
+    }
+}
+
+impl Add for Vec4D {
+    type Output = Vec4D;
+    fn add(self, rhs: Vec4D) -> Vec4D {
+        Vec4D {
+            x: self.x + rhs.x,
+            y: self.y + rhs.y,
+            z: self.z + rhs.z,
+            t: self.t + rhs.t,
+        }
+    }
+}
+
+impl PartialOrd for Vec4D {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Vec4D {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.x.cmp(&other.x).then(self.y.cmp(&other.y)).then(self.z.cmp(&other.z)).then(self.t.cmp(&other.t))
     }
 }
 
